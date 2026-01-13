@@ -1,6 +1,8 @@
 # .NET
 Blog.Api/bin/
 Blog.Api/obj/
+Blog.Api/appsettings.json
+Blog.Api/uploads/
 
 # Node
 frontend/node_modules/

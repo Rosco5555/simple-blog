@@ -9,10 +9,19 @@ namespace Blog.Api.Controllers;
 public class BlogPostsController : ControllerBase
 {
     private readonly IBlogPostService _service;
+    private const string AuthCookieName = "blog_auth";
+
+    // Fixed admin user ID for RLS
+    private static readonly Guid AdminUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
     public BlogPostsController(IBlogPostService service)
     {
         _service = service;
+    }
+
+    private bool IsAdmin()
+    {
+        return Request.Cookies.TryGetValue(AuthCookieName, out var value) && value == "admin";
     }
 
     [HttpGet]
@@ -33,14 +42,18 @@ public class BlogPostsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<BlogPost>> Create([FromBody] CreatePostRequest request)
     {
-        var post = await _service.CreatePost(request.Title, request.Content);
+        if (!IsAdmin()) return Unauthorized();
+
+        var post = await _service.CreatePost(request.Title, request.Content, request.Location, AdminUserId);
         return CreatedAtAction(nameof(GetById), new { id = post.Id }, post);
     }
 
     [HttpPut("{id}")]
     public async Task<ActionResult<BlogPost>> Update(Guid id, [FromBody] CreatePostRequest request)
     {
-        var post = await _service.UpdatePost(id, request.Title, request.Content);
+        if (!IsAdmin()) return Unauthorized();
+
+        var post = await _service.UpdatePost(id, request.Title, request.Content, request.Location, AdminUserId);
         if (post == null) return NotFound();
         return Ok(post);
     }
@@ -48,10 +61,12 @@ public class BlogPostsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<ActionResult> Delete(Guid id)
     {
-        var result = await _service.DeletePost(id);
+        if (!IsAdmin()) return Unauthorized();
+
+        var result = await _service.DeletePost(id, AdminUserId);
         if (!result) return NotFound();
         return NoContent();
     }
 }
 
-public record CreatePostRequest(string Title, string Content);
+public record CreatePostRequest(string Title, string Content, string? Location);

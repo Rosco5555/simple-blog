@@ -71,6 +71,35 @@
   font-style: italic;
   color: #666;
   margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.post .meta .location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.post .meta .author {
+  font-weight: 500;
+}
+
+.location-input {
+  font-family: inherit;
+  font-size: 12px;
+  font-style: italic;
+  border: none;
+  background: transparent;
+  color: #666;
+  outline: none;
+  width: 200px;
+}
+
+.location-input::placeholder {
+  color: #999;
 }
 
 .post .content {
@@ -87,4 +116,253 @@
   font-size: 14px;
   margin-bottom: 20px;
   display: block;
+}
+
+.post img {
+  max-width: 100%;
+  height: auto;
+  margin: 15px 0;
+  display: block;
+}
+
+.new-post-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  margin-bottom: 20px;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: #333;
+  background: transparent;
+  border: 1px solid #999;
+  border-radius: 20px;
+  transition: all 0.2s;
+}
+
+.new-post-btn:hover {
+  background: #333;
+  color: #f5f5dc;
+  border-color: #333;
+  text-decoration: none;
+}
+
+.title-input {
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: normal;
+  border: none;
+  background: transparent;
+  width: 100%;
+  outline: none;
+}
+
+.title-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+.content-input {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  border: none;
+  background: transparent;
+  width: 100%;
+  min-height: 300px;
+  outline: none;
+  resize: vertical;
+}
+
+.content-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+.post-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.publish-btn {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 20px;
+  background: #333;
+  color: #f5f5dc;
+  border: none;
+  cursor: pointer;
+}
+
+.publish-btn:hover {
+  background: #555;
+}
+
+.upload-btn {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 20px;
+  background: transparent;
+  color: #333;
+  border: 1px solid #999;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upload-btn:hover {
+  background: #333;
+  color: #f5f5dc;
+  border-color: #333;
+}
+
+.upload-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.edit-icon {
+  margin-left: 10px;
+  opacity: 0.4;
+  vertical-align: middle;
+  transition: opacity 0.2s;
+}
+
+.edit-icon:hover {
+  opacity: 1;
+  text-decoration: none;
+}
+
+.delete-icon {
+  margin-left: 8px;
+  opacity: 0.4;
+  vertical-align: middle;
+  transition: opacity 0.2s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
+}
+
+.delete-icon:hover {
+  opacity: 1;
+  color: #a33;
+}
+
+.auth-form {
+  max-width: 300px;
+  margin: 40px auto;
+  text-align: center;
+}
+
+.auth-form h2 {
+  font-size: 24px;
+  font-weight: normal;
+  margin-bottom: 25px;
+  border-bottom: 1px solid #999;
+  padding-bottom: 10px;
+}
+
+.auth-form form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.auth-form input {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 15px;
+  border: 1px solid #999;
+  background: transparent;
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: #333;
+}
+
+.auth-form button[type="submit"] {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 20px;
+  background: #333;
+  color: #f5f5dc;
+  border: none;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.auth-form button[type="submit"]:hover {
+  background: #555;
+}
+
+.auth-form .error {
+  color: #a33;
+  font-size: 13px;
+  margin: 0;
+}
+
+.sent-message {
+  font-size: 14px;
+  color: #666;
+  font-style: italic;
+}
+
+.toggle-auth {
+  margin-top: 20px;
+  font-size: 13px;
+  color: #666;
+}
+
+.toggle-auth button {
+  background: none;
+  border: none;
+  color: #333;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.user-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #999;
+  font-size: 13px;
+}
+
+.user-name {
+  display: block;
+  margin-bottom: 10px;
+  font-style: italic;
+}
+
+.logout-btn {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  background: transparent;
+  border: 1px solid #999;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  background: #333;
+  color: #f5f5dc;
+  border-color: #333;
+}
+
+.loading {
+  text-align: center;
+  padding: 50px;
+  font-style: italic;
+  color: #666;
+}
+
+.login-link {
+  font-size: 12px;
+  color: #666;
 }

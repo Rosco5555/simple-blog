@@ -22,28 +22,30 @@ public class BlogPostService : IBlogPostService
         return await _store.GetById(id);
     }
 
-    public async Task<BlogPost> CreatePost(string title, string content)
+    public async Task<BlogPost> CreatePost(string title, string content, string? location, Guid userId)
     {
         var post = new BlogPost
         {
             Title = title,
-            Content = content
+            Content = content,
+            Location = location
         };
-        return await _store.Create(post);
+        return await _store.Create(post, userId);
     }
 
-    public async Task<BlogPost?> UpdatePost(Guid id, string title, string content)
+    public async Task<BlogPost?> UpdatePost(Guid id, string title, string content, string? location, Guid userId)
     {
         var post = new BlogPost
         {
             Title = title,
-            Content = content
+            Content = content,
+            Location = location
         };
-        return await _store.Update(id, post);
+        return await _store.Update(id, post, userId);
     }
 
-    public async Task<bool> DeletePost(Guid id)
+    public async Task<bool> DeletePost(Guid id, Guid userId)
     {
-        return await _store.Delete(id);
+        return await _store.Delete(id, userId);
     }
 }
