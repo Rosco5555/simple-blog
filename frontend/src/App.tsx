@@ -110,7 +110,7 @@ function Layout({ children, posts, isAdmin, onLogout }: { children: React.ReactN
       </aside>
       <main className="main">
         <header className="header">
-          <Link to="/"><h1>The Daily Blog</h1></Link>
+          <Link to="/"><h1>RB Stuff</h1></Link>
           <div className="date">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
         </header>
         {children}
