@@ -11,9 +11,10 @@ interface BlogPost {
   authorName?: string;
 }
 
-const API_URL = 'http://localhost:5252/api/posts';
-const AUTH_URL = 'http://localhost:5252/api/auth';
-const IMAGE_URL = 'http://localhost:5252/api/images';
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5252';
+const API_URL = `${API_BASE}/api/posts`;
+const AUTH_URL = `${API_BASE}/api/auth`;
+const IMAGE_URL = `${API_BASE}/api/images`;
 
 function formatDateTime(dateStr: string) {
   const date = new Date(dateStr);
