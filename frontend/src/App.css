@@ -574,6 +574,52 @@ a:hover {
   color: #888;
 }
 
+/* Skeleton Loading */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton .skeleton-title,
+.skeleton .skeleton-meta,
+.skeleton .skeleton-line {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton .skeleton-title {
+  height: 28px;
+  width: 70%;
+  margin-bottom: 12px;
+}
+
+.skeleton .skeleton-meta {
+  height: 14px;
+  width: 40%;
+  margin-bottom: 16px;
+}
+
+.skeleton .skeleton-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton .skeleton-line {
+  height: 16px;
+  width: 100%;
+}
+
+.skeleton .skeleton-line.short {
+  width: 60%;
+}
+
 /* Responsive */
 @media (min-width: 768px) {
   .header h1 {

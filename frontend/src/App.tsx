@@ -407,6 +407,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -424,6 +425,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
         const { token } = await res.json();
         setToken(token);
         onLogin();
+        navigate('/');
       } else {
         setError('Invalid credentials');
       }
@@ -463,9 +465,33 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-function Home({ posts }: { posts: BlogPost[] }) {
+function PostSkeleton() {
+  return (
+    <article className="post skeleton">
+      <div className="skeleton-title"></div>
+      <div className="skeleton-meta"></div>
+      <div className="skeleton-content">
+        <div className="skeleton-line"></div>
+        <div className="skeleton-line"></div>
+        <div className="skeleton-line short"></div>
+      </div>
+    </article>
+  );
+}
+
+function Home({ posts, loading }: { posts: BlogPost[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <>
+        <PostSkeleton />
+        <PostSkeleton />
+        <PostSkeleton />
+      </>
+    );
+  }
+
   if (posts.length === 0) {
-    return <p>No posts yet.</p>;
+    return <p className="empty-state">No posts yet.</p>;
   }
 
   return (
@@ -762,12 +788,19 @@ function App() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [postsLoading, setPostsLoading] = useState(true);
 
-  const fetchPosts = () => {
-    fetch(API_URL)
-      .then(res => res.json())
-      .then(setPosts)
-      .catch(console.error);
+  const fetchPosts = async () => {
+    setPostsLoading(true);
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      setPosts(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPostsLoading(false);
+    }
   };
 
   const checkAuth = async () => {
@@ -813,7 +846,7 @@ function App() {
     <BrowserRouter>
       <Layout posts={posts} isAdmin={isAdmin} onLogout={handleLogout}>
         <Routes>
-          <Route path="/" element={<Home posts={posts} />} />
+          <Route path="/" element={<Home posts={posts} loading={postsLoading} />} />
           <Route path="/post/:id" element={<Post posts={posts} isAdmin={isAdmin} onPostDeleted={fetchPosts} />} />
           <Route path="/edit/:id" element={isAdmin ? <EditPost posts={posts} onPostUpdated={fetchPosts} /> : <LoginForm onLogin={() => { checkAuth(); }} />} />
           <Route path="/new" element={isAdmin ? <NewPost onPostCreated={fetchPosts} /> : <LoginForm onLogin={() => { checkAuth(); }} />} />
