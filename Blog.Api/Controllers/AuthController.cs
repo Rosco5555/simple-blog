@@ -19,11 +19,15 @@ public class AuthController : ControllerBase
     {
         _adminEmail = Environment.GetEnvironmentVariable("ADMIN_EMAIL")
             ?? config["Admin:Email"]
-            ?? throw new Exception("Admin:Email not configured");
+            ?? "";
         _baseUrl = Environment.GetEnvironmentVariable("BASE_URL")
             ?? config["BaseUrl"]
             ?? "http://localhost:5252";
         _resend = resend;
+
+        // Debug logging
+        Console.WriteLine($"ADMIN_EMAIL env var: {Environment.GetEnvironmentVariable("ADMIN_EMAIL") ?? "NOT SET"}");
+        Console.WriteLine($"Admin email loaded as: {(string.IsNullOrEmpty(_adminEmail) ? "EMPTY" : "SET")}");
     }
 
     public record SendLinkRequest(string Email);
