@@ -104,14 +104,29 @@ function renderContent(content: string) {
 }
 
 function Layout({ children, posts, isAdmin, onLogout }: { children: React.ReactNode; posts: BlogPost[]; isAdmin: boolean; onLogout: () => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const closeMenu = () => setMenuOpen(false);
+
   return (
     <div className="layout">
-      <aside className="sidebar">
+      <button className="nav-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          {menuOpen ? (
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          ) : (
+            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+          )}
+        </svg>
+      </button>
+
+      <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
+        <button className="sidebar-close" onClick={closeMenu} aria-label="Close menu">&times;</button>
         {isAdmin && (
-          <Link to="/new" className="new-post-btn">
+          <Link to="/new" className="new-post-btn" onClick={closeMenu}>
             New post
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-              <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/>
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
             </svg>
           </Link>
         )}
@@ -119,16 +134,17 @@ function Layout({ children, posts, isAdmin, onLogout }: { children: React.ReactN
         <ul>
           {posts.map(post => (
             <li key={post.id}>
-              <Link to={`/post/${post.id}`}>{post.title}</Link>
+              <Link to={`/post/${post.id}`} onClick={closeMenu}>{post.title}</Link>
             </li>
           ))}
         </ul>
         {isAdmin && (
           <div className="user-section">
-            <button className="logout-btn" onClick={onLogout}>Logout</button>
+            <button className="logout-btn" onClick={() => { onLogout(); closeMenu(); }}>Logout</button>
           </div>
         )}
       </aside>
+
       <main className="main">
         <header className="header">
           <Link to="/"><h1>RB Stuff</h1></Link>
