@@ -9,6 +9,7 @@ public class AuthController : ControllerBase
 {
     private readonly string _adminEmail;
     private readonly string _baseUrl;
+    private readonly string _frontendUrl;
     private readonly IResend _resend;
     private const string AuthCookieName = "blog_auth";
 
@@ -23,11 +24,10 @@ public class AuthController : ControllerBase
         _baseUrl = Environment.GetEnvironmentVariable("BASE_URL")
             ?? config["BaseUrl"]
             ?? "http://localhost:5252";
+        _frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL")
+            ?? config["FrontendUrl"]
+            ?? "http://localhost:3000";
         _resend = resend;
-
-        // Debug logging
-        Console.WriteLine($"ADMIN_EMAIL env var: {Environment.GetEnvironmentVariable("ADMIN_EMAIL") ?? "NOT SET"}");
-        Console.WriteLine($"Admin email loaded as: {(string.IsNullOrEmpty(_adminEmail) ? "EMPTY" : "SET")}");
     }
 
     public record SendLinkRequest(string Email);
@@ -111,7 +111,7 @@ public class AuthController : ControllerBase
         });
 
         // Redirect to frontend
-        return Redirect("http://localhost:3000/");
+        return Redirect(_frontendUrl);
     }
 
     [HttpPost("logout")]
