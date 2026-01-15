@@ -11,10 +11,12 @@ public class AuthController : ControllerBase
     private readonly string _baseUrl;
     private readonly string _frontendUrl;
     private readonly IResend _resend;
-    private const string AuthCookieName = "blog_auth";
 
-    // In-memory token storage (token -> expiry time)
-    private static readonly Dictionary<string, DateTime> _tokens = new();
+    // In-memory storage for magic link tokens (short-lived)
+    private static readonly Dictionary<string, DateTime> _magicTokens = new();
+
+    // In-memory storage for session tokens (long-lived)
+    private static readonly Dictionary<string, DateTime> _sessionTokens = new();
 
     public AuthController(IConfiguration config, IResend resend)
     {
@@ -54,11 +56,11 @@ public class AuthController : ControllerBase
         var expiry = DateTime.UtcNow.AddMinutes(15);
 
         // Clean up expired tokens
-        var expired = _tokens.Where(t => t.Value < DateTime.UtcNow).Select(t => t.Key).ToList();
-        foreach (var key in expired) _tokens.Remove(key);
+        var expired = _magicTokens.Where(t => t.Value < DateTime.UtcNow).Select(t => t.Key).ToList();
+        foreach (var key in expired) _magicTokens.Remove(key);
 
         // Store new token
-        _tokens[token] = expiry;
+        _magicTokens[token] = expiry;
 
         // Send email
         var link = $"{_baseUrl}/api/auth/verify?token={token}";
@@ -93,42 +95,58 @@ public class AuthController : ControllerBase
             return BadRequest("Invalid token");
         }
 
-        // Check if token exists and is not expired
-        if (!_tokens.TryGetValue(token, out var expiry) || expiry < DateTime.UtcNow)
+        // Check if magic token exists and is not expired
+        if (!_magicTokens.TryGetValue(token, out var expiry) || expiry < DateTime.UtcNow)
         {
             return BadRequest("Invalid or expired token");
         }
 
-        // Remove token (single use)
-        _tokens.Remove(token);
+        // Remove magic token (single use)
+        _magicTokens.Remove(token);
 
-        // Set auth cookie (SameSite=None for cross-domain, Secure required)
-        Response.Cookies.Append(AuthCookieName, "admin", new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.None,
-            Secure = true,
-            Expires = DateTimeOffset.UtcNow.AddDays(30)
-        });
+        // Generate session token (long-lived)
+        var sessionToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+        _sessionTokens[sessionToken] = DateTime.UtcNow.AddDays(30);
 
-        // Redirect to frontend
-        return Redirect(_frontendUrl);
+        // Clean up expired session tokens
+        var expired = _sessionTokens.Where(t => t.Value < DateTime.UtcNow).Select(t => t.Key).ToList();
+        foreach (var key in expired) _sessionTokens.Remove(key);
+
+        // Redirect to frontend with session token
+        return Redirect($"{_frontendUrl}?token={sessionToken}");
     }
 
     [HttpPost("logout")]
     public ActionResult Logout()
     {
-        Response.Cookies.Delete(AuthCookieName);
+        var token = GetTokenFromHeader();
+        if (!string.IsNullOrEmpty(token))
+        {
+            _sessionTokens.Remove(token);
+        }
         return Ok();
     }
 
     [HttpGet("me")]
     public ActionResult Me()
     {
-        if (Request.Cookies.TryGetValue(AuthCookieName, out var value) && value == "admin")
+        var token = GetTokenFromHeader();
+        if (!string.IsNullOrEmpty(token) &&
+            _sessionTokens.TryGetValue(token, out var expiry) &&
+            expiry > DateTime.UtcNow)
         {
             return Ok(new { email = _adminEmail });
         }
         return Unauthorized();
+    }
+
+    private string? GetTokenFromHeader()
+    {
+        var auth = Request.Headers["Authorization"].FirstOrDefault();
+        if (auth != null && auth.StartsWith("Bearer "))
+        {
+            return auth.Substring(7);
+        }
+        return null;
     }
 }

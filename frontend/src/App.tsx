@@ -16,6 +16,26 @@ const API_URL = `${API_BASE}/api/posts`;
 const AUTH_URL = `${API_BASE}/api/auth`;
 const IMAGE_URL = `${API_BASE}/api/images`;
 
+// Token management
+const TOKEN_KEY = 'rb_auth_token';
+
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+function authHeaders(): HeadersInit {
+  const token = getToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 function formatDateTime(dateStr: string) {
   const date = new Date(dateStr);
   return date.toLocaleString('en-US', {
@@ -133,7 +153,6 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
       const res = await fetch(`${AUTH_URL}/send-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ email })
       });
 
@@ -206,7 +225,7 @@ function Post({ posts, isAdmin, onPostDeleted }: { posts: BlogPost[]; isAdmin: b
 
     await fetch(`${API_URL}/${id}`, {
       method: 'DELETE',
-      credentials: 'include'
+      headers: authHeaders()
     });
 
     onPostDeleted();
@@ -267,7 +286,7 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
     try {
       const res = await fetch(IMAGE_URL, {
         method: 'POST',
-        credentials: 'include',
+        headers: authHeaders(),
         body: formData
       });
 
@@ -296,8 +315,7 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
 
     await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ Title: title, Content: content, Location: location || null })
     });
 
@@ -393,7 +411,7 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
     try {
       const res = await fetch(IMAGE_URL, {
         method: 'POST',
-        credentials: 'include',
+        headers: authHeaders(),
         body: formData
       });
 
@@ -426,8 +444,7 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
 
     await fetch(`${API_URL}/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ Title: title, Content: content, Location: location || null })
     });
 
@@ -499,16 +516,26 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   const fetchPosts = () => {
-    fetch(API_URL, { credentials: 'include' })
+    fetch(API_URL)
       .then(res => res.json())
       .then(setPosts)
       .catch(console.error);
   };
 
   const checkAuth = async () => {
+    const token = getToken();
+    if (!token) {
+      setIsAdmin(false);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await fetch(`${AUTH_URL}/me`, { credentials: 'include' });
+      const res = await fetch(`${AUTH_URL}/me`, {
+        headers: authHeaders()
+      });
       setIsAdmin(res.ok);
+      if (!res.ok) clearToken();
     } catch {
       setIsAdmin(false);
     } finally {
@@ -519,12 +546,22 @@ function App() {
   const handleLogout = async () => {
     await fetch(`${AUTH_URL}/logout`, {
       method: 'POST',
-      credentials: 'include'
+      headers: authHeaders()
     });
+    clearToken();
     setIsAdmin(false);
   };
 
   useEffect(() => {
+    // Check for token in URL (from magic link redirect)
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      setToken(token);
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
     checkAuth();
     fetchPosts();
   }, []);
