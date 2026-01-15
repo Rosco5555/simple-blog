@@ -15,9 +15,6 @@ public class AuthController : ControllerBase
     // In-memory storage for magic link tokens (short-lived)
     private static readonly Dictionary<string, DateTime> _magicTokens = new();
 
-    // In-memory storage for session tokens (long-lived)
-    private static readonly Dictionary<string, DateTime> _sessionTokens = new();
-
     public AuthController(IConfiguration config, IResend resend)
     {
         _adminEmail = Environment.GetEnvironmentVariable("ADMIN_EMAIL")
@@ -106,11 +103,7 @@ public class AuthController : ControllerBase
 
         // Generate session token (long-lived)
         var sessionToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-        _sessionTokens[sessionToken] = DateTime.UtcNow.AddDays(30);
-
-        // Clean up expired session tokens
-        var expired = _sessionTokens.Where(t => t.Value < DateTime.UtcNow).Select(t => t.Key).ToList();
-        foreach (var key in expired) _sessionTokens.Remove(key);
+        TokenStore.AddToken(sessionToken, DateTime.UtcNow.AddDays(30));
 
         // Redirect to frontend with session token
         return Redirect($"{_frontendUrl}?token={sessionToken}");
@@ -122,7 +115,7 @@ public class AuthController : ControllerBase
         var token = GetTokenFromHeader();
         if (!string.IsNullOrEmpty(token))
         {
-            _sessionTokens.Remove(token);
+            TokenStore.RemoveToken(token);
         }
         return Ok();
     }
@@ -131,9 +124,7 @@ public class AuthController : ControllerBase
     public ActionResult Me()
     {
         var token = GetTokenFromHeader();
-        if (!string.IsNullOrEmpty(token) &&
-            _sessionTokens.TryGetValue(token, out var expiry) &&
-            expiry > DateTime.UtcNow)
+        if (!string.IsNullOrEmpty(token) && TokenStore.IsValidToken(token))
         {
             return Ok(new { email = _adminEmail });
         }

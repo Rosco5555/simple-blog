@@ -9,7 +9,6 @@ namespace Blog.Api.Controllers;
 public class BlogPostsController : ControllerBase
 {
     private readonly IBlogPostService _service;
-    private const string AuthCookieName = "blog_auth";
 
     // Fixed admin user ID for RLS
     private static readonly Guid AdminUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -21,7 +20,18 @@ public class BlogPostsController : ControllerBase
 
     private bool IsAdmin()
     {
-        return Request.Cookies.TryGetValue(AuthCookieName, out var value) && value == "admin";
+        var token = GetTokenFromHeader();
+        return !string.IsNullOrEmpty(token) && TokenStore.IsValidToken(token);
+    }
+
+    private string? GetTokenFromHeader()
+    {
+        var auth = Request.Headers["Authorization"].FirstOrDefault();
+        if (auth != null && auth.StartsWith("Bearer "))
+        {
+            return auth.Substring(7);
+        }
+        return null;
     }
 
     [HttpGet]
