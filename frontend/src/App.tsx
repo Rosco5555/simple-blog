@@ -403,53 +403,61 @@ function Layout({ children, posts, isAdmin, onLogout }: { children: React.ReactN
 }
 
 function LoginForm({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
     try {
-      const res = await fetch(`${AUTH_URL}/send-link`, {
+      const res = await fetch(`${AUTH_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ username, password })
       });
 
       if (res.ok) {
-        setSent(true);
+        const { token } = await res.json();
+        setToken(token);
+        onLogin();
       } else {
-        setError('Something went wrong');
+        setError('Invalid credentials');
       }
     } catch {
       setError('Connection failed');
+    } finally {
+      setLoading(false);
     }
   };
-
-  if (sent) {
-    return (
-      <div className="auth-form">
-        <h2>Check your email</h2>
-        <p className="sent-message">If that email is registered, you'll receive a login link.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="auth-form">
       <h2>Admin Login</h2>
       <form onSubmit={handleSubmit}>
         <input
-          type="email"
-          placeholder="Email address"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
           required
+          autoComplete="username"
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          required
+          autoComplete="current-password"
         />
         {error && <p className="error">{error}</p>}
-        <button type="submit">Send login link</button>
+        <button type="submit" disabled={loading}>
+          {loading ? 'Logging in...' : 'Login'}
+        </button>
       </form>
     </div>
   );
@@ -793,15 +801,6 @@ function App() {
   };
 
   useEffect(() => {
-    // Check for token in URL (from magic link redirect)
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    if (token) {
-      setToken(token);
-      // Clean up URL
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-
     checkAuth();
     fetchPosts();
   }, []);

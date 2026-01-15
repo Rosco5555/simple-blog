@@ -1,7 +1,6 @@
 using Microsoft.Extensions.FileProviders;
 using Blog.Api.Stores;
 using Blog.Api.Services;
-using Resend;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,17 +23,6 @@ builder.Services.AddSingleton<IBlogPostStore>(new BlogPostStore(connectionString
 builder.Services.AddSingleton<IUserStore>(new UserStore(connectionString));
 builder.Services.AddSingleton<IBlogPostService, BlogPostService>();
 builder.Services.AddControllers();
-
-// Resend email service
-builder.Services.AddOptions();
-builder.Services.AddHttpClient<ResendClient>();
-builder.Services.Configure<ResendClientOptions>(o =>
-{
-    o.ApiToken = Environment.GetEnvironmentVariable("RESEND_API_KEY")
-        ?? builder.Configuration["Resend:ApiKey"]
-        ?? "";
-});
-builder.Services.AddTransient<IResend, ResendClient>();
 
 // CORS - allow configured origins or defaults for local dev
 var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',')
@@ -90,11 +78,11 @@ using (var conn = new Npgsql.NpgsqlConnection(connectionString))
     await ExecuteSql(conn, @"
         ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT");
 
-    // Migration 006: Create admin user
+    // Migration 006: Create admin user with password
     await ExecuteSql(conn, @"
-        INSERT INTO users (id, username, display_name)
-        VALUES ('00000000-0000-0000-0000-000000000001', 'admin', 'Admin')
-        ON CONFLICT (id) DO NOTHING");
+        INSERT INTO users (id, username, display_name, password_hash)
+        VALUES ('00000000-0000-0000-0000-000000000001', 'admin', 'Admin', '$2b$12$YIRKQvem.pqmJQw0Rr42yuVoQHPMfA5XWWnyh2IvreHZ2GoIKoTdW')
+        ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash WHERE users.password_hash IS NULL");
 }
 
 async Task ExecuteSql(Npgsql.NpgsqlConnection conn, string sql)

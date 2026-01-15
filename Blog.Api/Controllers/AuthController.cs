@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Resend;
+using Blog.Api.Stores;
 
 namespace Blog.Api.Controllers;
 
@@ -7,106 +7,39 @@ namespace Blog.Api.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly string _adminEmail;
-    private readonly string _baseUrl;
-    private readonly string _frontendUrl;
-    private readonly IResend _resend;
+    private readonly IUserStore _userStore;
 
-    // In-memory storage for magic link tokens (short-lived)
-    private static readonly Dictionary<string, DateTime> _magicTokens = new();
-
-    public AuthController(IConfiguration config, IResend resend)
+    public AuthController(IUserStore userStore)
     {
-        _adminEmail = Environment.GetEnvironmentVariable("ADMIN_EMAIL")
-            ?? config["Admin:Email"]
-            ?? "";
-        _baseUrl = Environment.GetEnvironmentVariable("BASE_URL")
-            ?? config["BaseUrl"]
-            ?? "http://localhost:5252";
-        _frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL")
-            ?? config["FrontendUrl"]
-            ?? "http://localhost:3000";
-        _resend = resend;
+        _userStore = userStore;
     }
 
-    public record SendLinkRequest(string Email);
+    public record LoginRequest(string Username, string Password);
 
-    [HttpPost("send-link")]
-    public async Task<ActionResult> SendLink(SendLinkRequest request)
+    [HttpPost("login")]
+    public async Task<ActionResult> Login(LoginRequest request)
     {
-        // Always return same response to prevent email enumeration
-        var response = new { message = "If that email is registered, you'll receive a login link." };
-
-        if (string.IsNullOrWhiteSpace(request.Email))
+        if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return Ok(response);
+            return BadRequest(new { error = "Username and password required" });
         }
 
-        // Only send if email matches admin
-        if (!request.Email.Equals(_adminEmail, StringComparison.OrdinalIgnoreCase))
+        var user = await _userStore.GetByUsername(request.Username);
+        if (user == null || string.IsNullOrEmpty(user.PasswordHash))
         {
-            return Ok(response);
+            return Unauthorized(new { error = "Invalid credentials" });
         }
 
-        // Generate secure token
-        var token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-        var expiry = DateTime.UtcNow.AddMinutes(15);
-
-        // Clean up expired tokens
-        var expired = _magicTokens.Where(t => t.Value < DateTime.UtcNow).Select(t => t.Key).ToList();
-        foreach (var key in expired) _magicTokens.Remove(key);
-
-        // Store new token
-        _magicTokens[token] = expiry;
-
-        // Send email
-        var link = $"{_baseUrl}/api/auth/verify?token={token}";
-
-        try
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
-            await _resend.EmailSendAsync(new EmailMessage
-            {
-                From = "blog@resend.dev",
-                To = { _adminEmail },
-                Subject = "Login to RB Stuff",
-                HtmlBody = $@"
-                    <p>Click the link below to log in:</p>
-                    <p><a href=""{link}"">{link}</a></p>
-                    <p>This link expires in 15 minutes.</p>
-                "
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to send email: {ex.Message}");
+            return Unauthorized(new { error = "Invalid credentials" });
         }
 
-        return Ok(response);
-    }
-
-    [HttpGet("verify")]
-    public ActionResult Verify([FromQuery] string token)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return BadRequest("Invalid token");
-        }
-
-        // Check if magic token exists and is not expired
-        if (!_magicTokens.TryGetValue(token, out var expiry) || expiry < DateTime.UtcNow)
-        {
-            return BadRequest("Invalid or expired token");
-        }
-
-        // Remove magic token (single use)
-        _magicTokens.Remove(token);
-
-        // Generate session token (long-lived)
+        // Generate session token
         var sessionToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
         TokenStore.AddToken(sessionToken, DateTime.UtcNow.AddDays(30));
 
-        // Redirect to frontend with session token
-        return Redirect($"{_frontendUrl}?token={sessionToken}");
+        return Ok(new { token = sessionToken });
     }
 
     [HttpPost("logout")]
@@ -126,7 +59,7 @@ public class AuthController : ControllerBase
         var token = GetTokenFromHeader();
         if (!string.IsNullOrEmpty(token) && TokenStore.IsValidToken(token))
         {
-            return Ok(new { email = _adminEmail });
+            return Ok(new { username = "admin" });
         }
         return Unauthorized();
     }
