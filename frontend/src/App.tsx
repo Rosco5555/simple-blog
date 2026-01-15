@@ -226,30 +226,127 @@ function renderContent(content: string) {
   });
 }
 
-// Render content for editing (with resizable images)
-function renderEditableContent(
-  content: string,
-  onImageResize: (imageIndex: number, width: number) => void
-) {
-  const parts = parseImageMarkdown(content);
-  let imageIndex = 0;
+// Extract content from contenteditable DOM back to markdown
+function extractContentFromDOM(element: HTMLElement | null): string {
+  if (!element) return '';
 
-  return parts.map((part, i) => {
-    if (part.type === 'image') {
-      const idx = imageIndex++;
-      return (
-        <ResizableImage
-          key={i}
-          src={part.url || ''}
-          alt={part.alt || ''}
-          width={part.width}
-          isEditing={true}
-          onResize={(width) => onImageResize(idx, width)}
-        />
-      );
+  let result = '';
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      result += node.textContent || '';
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      if (el.tagName === 'IMG') {
+        const img = el as HTMLImageElement;
+        const alt = img.alt || '';
+        const src = img.src || '';
+        const width = img.dataset.width;
+        if (width) {
+          result += `![${alt}](${src} =${width}x)`;
+        } else {
+          result += `![${alt}](${src})`;
+        }
+      } else if (el.tagName === 'BR') {
+        result += '\n';
+      } else if (el.classList.contains('resizable-image')) {
+        // Find the img inside
+        const img = el.querySelector('img') as HTMLImageElement;
+        if (img) {
+          const alt = img.alt || '';
+          const src = img.src || '';
+          const width = img.style.width ? parseInt(img.style.width) : undefined;
+          if (width) {
+            result += `![${alt}](${src} =${width}x)`;
+          } else {
+            result += `![${alt}](${src})`;
+          }
+        }
+      } else {
+        node.childNodes.forEach(walk);
+      }
     }
-    return <span key={i}>{part.value}</span>;
-  });
+  };
+
+  element.childNodes.forEach(walk);
+  return result;
+}
+
+// Inline editor component with live image preview
+function InlineEditor({
+  content,
+  onChange,
+  placeholder
+}: {
+  content: string;
+  onChange: (content: string) => void;
+  placeholder?: string;
+}) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [internalContent, setInternalContent] = useState(content);
+  const isUpdatingRef = useRef(false);
+
+  // Sync external content changes (e.g., image upload)
+  useEffect(() => {
+    if (!isUpdatingRef.current) {
+      setInternalContent(content);
+    }
+  }, [content]);
+
+  const parts = parseImageMarkdown(internalContent);
+  const hasImages = parts.some(p => p.type === 'image');
+
+  const handleInput = () => {
+    if (!editorRef.current) return;
+    isUpdatingRef.current = true;
+    const newContent = extractContentFromDOM(editorRef.current);
+    setInternalContent(newContent);
+    onChange(newContent);
+    // Reset flag after React processes the update
+    setTimeout(() => { isUpdatingRef.current = false; }, 0);
+  };
+
+  const handleImageResize = (imageIndex: number, width: number) => {
+    const newContent = updateImageDimensions(internalContent, imageIndex, width);
+    setInternalContent(newContent);
+    onChange(newContent);
+  };
+
+  // Render mixed content with editable text and resizable images
+  let imageIndex = 0;
+  const renderParts = () => {
+    return parts.map((part, i) => {
+      if (part.type === 'image') {
+        const idx = imageIndex++;
+        return (
+          <ResizableImage
+            key={`img-${i}`}
+            src={part.url || ''}
+            alt={part.alt || ''}
+            width={part.width}
+            isEditing={true}
+            onResize={(width) => handleImageResize(idx, width)}
+          />
+        );
+      }
+      // For text, just return the text content (will be editable)
+      return part.value;
+    });
+  };
+
+  const isEmpty = !internalContent.trim();
+
+  return (
+    <div
+      ref={editorRef}
+      className={`inline-editor ${isEmpty ? 'empty' : ''}`}
+      contentEditable
+      suppressContentEditableWarning
+      onInput={handleInput}
+      data-placeholder={placeholder}
+    >
+      {hasImages ? renderParts() : internalContent}
+    </div>
+  );
 }
 
 function Layout({ children, posts, isAdmin, onLogout }: { children: React.ReactNode; posts: BlogPost[]; isAdmin: boolean; onLogout: () => void }) {
@@ -430,8 +527,6 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
   const [content, setContent] = useState('');
   const [location, setLocation] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -440,10 +535,6 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
       if (loc) setLocation(loc);
     });
   }, []);
-
-  const handleImageResize = (imageIndex: number, width: number) => {
-    setContent(updateImageDimensions(content, imageIndex, width));
-  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -462,15 +553,7 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
 
       if (res.ok) {
         const { url } = await res.json();
-        const textarea = textareaRef.current;
-        if (textarea) {
-          const start = textarea.selectionStart;
-          const before = content.substring(0, start);
-          const after = content.substring(start);
-          setContent(`${before}![](${url})${after}`);
-        } else {
-          setContent(content + `![](${url})`);
-        }
+        setContent(content + `![](${url})`);
       }
     } catch (err) {
       console.error('Upload failed:', err);
@@ -521,28 +604,11 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
             />
           </span>
         </div>
-        <div className="editor-toolbar">
-          <button
-            type="button"
-            className={`preview-toggle ${showPreview ? 'active' : ''}`}
-            onClick={() => setShowPreview(!showPreview)}
-          >
-            {showPreview ? 'Edit' : 'Preview'}
-          </button>
-        </div>
-        {showPreview ? (
-          <div className="content-preview">
-            {renderEditableContent(content, handleImageResize)}
-          </div>
-        ) : (
-          <textarea
-            ref={textareaRef}
-            className="content-input"
-            placeholder="type body here"
-            value={content}
-            onChange={e => setContent(e.target.value)}
-          />
-        )}
+        <InlineEditor
+          content={content}
+          onChange={setContent}
+          placeholder="type body here"
+        />
         <div className="post-actions">
           <input
             ref={fileInputRef}
@@ -555,7 +621,7 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
             type="button"
             className="upload-btn"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || showPreview}
+            disabled={uploading}
           >
             {uploading ? 'Uploading...' : 'Add image'}
           </button>
@@ -573,8 +639,6 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
   const [content, setContent] = useState(post?.content || '');
   const [location, setLocation] = useState(post?.location || '');
   const [uploading, setUploading] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -585,10 +649,6 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
       setLocation(post.location || '');
     }
   }, [post]);
-
-  const handleImageResize = (imageIndex: number, width: number) => {
-    setContent(updateImageDimensions(content, imageIndex, width));
-  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -607,15 +667,7 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
 
       if (res.ok) {
         const { url } = await res.json();
-        const textarea = textareaRef.current;
-        if (textarea) {
-          const start = textarea.selectionStart;
-          const before = content.substring(0, start);
-          const after = content.substring(start);
-          setContent(`${before}![](${url})${after}`);
-        } else {
-          setContent(content + `![](${url})`);
-        }
+        setContent(content + `![](${url})`);
       }
     } catch (err) {
       console.error('Upload failed:', err);
@@ -670,28 +722,11 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
             />
           </span>
         </div>
-        <div className="editor-toolbar">
-          <button
-            type="button"
-            className={`preview-toggle ${showPreview ? 'active' : ''}`}
-            onClick={() => setShowPreview(!showPreview)}
-          >
-            {showPreview ? 'Edit' : 'Preview'}
-          </button>
-        </div>
-        {showPreview ? (
-          <div className="content-preview">
-            {renderEditableContent(content, handleImageResize)}
-          </div>
-        ) : (
-          <textarea
-            ref={textareaRef}
-            className="content-input"
-            placeholder="type body here"
-            value={content}
-            onChange={e => setContent(e.target.value)}
-          />
-        )}
+        <InlineEditor
+          content={content}
+          onChange={setContent}
+          placeholder="type body here"
+        />
         <div className="post-actions">
           <input
             ref={fileInputRef}
@@ -704,7 +739,7 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
             type="button"
             className="upload-btn"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || showPreview}
+            disabled={uploading}
           >
             {uploading ? 'Uploading...' : 'Add image'}
           </button>

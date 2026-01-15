@@ -423,6 +423,31 @@ a:hover {
   color: #ccc;
 }
 
+/* Inline Editor */
+.inline-editor {
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.75;
+  min-height: 300px;
+  outline: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.inline-editor:focus {
+  outline: none;
+}
+
+.inline-editor.empty::before {
+  content: attr(data-placeholder);
+  color: #ccc;
+  pointer-events: none;
+}
+
+.inline-editor .resizable-image {
+  margin: 12px 0;
+}
+
 .post-actions {
   display: flex;
   gap: 12px;
