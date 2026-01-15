@@ -92,14 +92,163 @@ async function detectLocation(): Promise<string | null> {
   });
 }
 
-function renderContent(content: string) {
-  const parts = content.split(/(!\[.*?\]\(.*?\))/g);
-  return parts.map((part, i) => {
-    const match = part.match(/!\[(.*?)\]\((.*?)\)/);
-    if (match) {
-      return <img key={i} src={match[2]} alt={match[1]} />;
+// Parse image markdown with optional dimensions: ![alt](url =WIDTHx) or ![alt](url =WIDTHxHEIGHT)
+function parseImageMarkdown(content: string) {
+  const regex = /!\[(.*?)\]\(([^)\s]+)(?:\s*=(\d+)?x(\d+)?)?\)/g;
+  const parts: Array<{
+    type: 'text' | 'image';
+    value: string;
+    alt?: string;
+    url?: string;
+    width?: number;
+    height?: number;
+  }> = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', value: content.slice(lastIndex, match.index) });
     }
-    return <span key={i}>{part}</span>;
+    parts.push({
+      type: 'image',
+      value: match[0],
+      alt: match[1],
+      url: match[2],
+      width: match[3] ? parseInt(match[3]) : undefined,
+      height: match[4] ? parseInt(match[4]) : undefined,
+    });
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push({ type: 'text', value: content.slice(lastIndex) });
+  }
+
+  return parts;
+}
+
+// Update markdown content with new image dimensions
+function updateImageDimensions(content: string, imageIndex: number, newWidth: number): string {
+  const regex = /!\[(.*?)\]\(([^)\s]+)(?:\s*=\d*x\d*)?\)/g;
+  let currentIndex = 0;
+
+  return content.replace(regex, (match, alt, url) => {
+    if (currentIndex === imageIndex) {
+      currentIndex++;
+      return `![${alt}](${url} =${newWidth}x)`;
+    }
+    currentIndex++;
+    return match;
+  });
+}
+
+// Resizable image component for editor preview
+function ResizableImage({
+  src,
+  alt,
+  width,
+  isEditing,
+  onResize
+}: {
+  src: string;
+  alt: string;
+  width?: number;
+  isEditing: boolean;
+  onResize: (width: number) => void;
+}) {
+  const [isResizing, setIsResizing] = useState(false);
+  const [currentWidth, setCurrentWidth] = useState(width);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const startPos = useRef({ x: 0, width: 0 });
+
+  useEffect(() => {
+    setCurrentWidth(width);
+  }, [width]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - startPos.current.x;
+      const newWidth = Math.max(100, Math.min(680, startPos.current.width + deltaX));
+      setCurrentWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      if (currentWidth) {
+        onResize(Math.round(currentWidth));
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, currentWidth, onResize]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    startPos.current = {
+      x: e.clientX,
+      width: imgRef.current?.offsetWidth || currentWidth || 300
+    };
+  };
+
+  const style: React.CSSProperties = currentWidth ? { width: currentWidth } : {};
+
+  return (
+    <div className={`resizable-image ${isEditing ? 'editing' : ''} ${isResizing ? 'resizing' : ''}`}>
+      <img ref={imgRef} src={src} alt={alt} style={style} />
+      {isEditing && (
+        <div className="resize-handle" onMouseDown={handleMouseDown} />
+      )}
+      {isResizing && currentWidth && (
+        <div className="resize-indicator">{Math.round(currentWidth)}px</div>
+      )}
+    </div>
+  );
+}
+
+// Render content for display (non-editable)
+function renderContent(content: string) {
+  const parts = parseImageMarkdown(content);
+  return parts.map((part, i) => {
+    if (part.type === 'image') {
+      const style: React.CSSProperties = part.width ? { width: part.width } : {};
+      return <img key={i} src={part.url} alt={part.alt || ''} style={style} />;
+    }
+    return <span key={i}>{part.value}</span>;
+  });
+}
+
+// Render content for editing (with resizable images)
+function renderEditableContent(
+  content: string,
+  onImageResize: (imageIndex: number, width: number) => void
+) {
+  const parts = parseImageMarkdown(content);
+  let imageIndex = 0;
+
+  return parts.map((part, i) => {
+    if (part.type === 'image') {
+      const idx = imageIndex++;
+      return (
+        <ResizableImage
+          key={i}
+          src={part.url || ''}
+          alt={part.alt || ''}
+          width={part.width}
+          isEditing={true}
+          onResize={(width) => onImageResize(idx, width)}
+        />
+      );
+    }
+    return <span key={i}>{part.value}</span>;
   });
 }
 
@@ -281,6 +430,7 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
   const [content, setContent] = useState('');
   const [location, setLocation] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -290,6 +440,10 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
       if (loc) setLocation(loc);
     });
   }, []);
+
+  const handleImageResize = (imageIndex: number, width: number) => {
+    setContent(updateImageDimensions(content, imageIndex, width));
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -367,13 +521,28 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
             />
           </span>
         </div>
-        <textarea
-          ref={textareaRef}
-          className="content-input"
-          placeholder="type body here"
-          value={content}
-          onChange={e => setContent(e.target.value)}
-        />
+        <div className="editor-toolbar">
+          <button
+            type="button"
+            className={`preview-toggle ${showPreview ? 'active' : ''}`}
+            onClick={() => setShowPreview(!showPreview)}
+          >
+            {showPreview ? 'Edit' : 'Preview'}
+          </button>
+        </div>
+        {showPreview ? (
+          <div className="content-preview">
+            {renderEditableContent(content, handleImageResize)}
+          </div>
+        ) : (
+          <textarea
+            ref={textareaRef}
+            className="content-input"
+            placeholder="type body here"
+            value={content}
+            onChange={e => setContent(e.target.value)}
+          />
+        )}
         <div className="post-actions">
           <input
             ref={fileInputRef}
@@ -386,7 +555,7 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
             type="button"
             className="upload-btn"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
+            disabled={uploading || showPreview}
           >
             {uploading ? 'Uploading...' : 'Add image'}
           </button>
@@ -404,6 +573,7 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
   const [content, setContent] = useState(post?.content || '');
   const [location, setLocation] = useState(post?.location || '');
   const [uploading, setUploading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -415,6 +585,10 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
       setLocation(post.location || '');
     }
   }, [post]);
+
+  const handleImageResize = (imageIndex: number, width: number) => {
+    setContent(updateImageDimensions(content, imageIndex, width));
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -496,13 +670,28 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
             />
           </span>
         </div>
-        <textarea
-          ref={textareaRef}
-          className="content-input"
-          placeholder="type body here"
-          value={content}
-          onChange={e => setContent(e.target.value)}
-        />
+        <div className="editor-toolbar">
+          <button
+            type="button"
+            className={`preview-toggle ${showPreview ? 'active' : ''}`}
+            onClick={() => setShowPreview(!showPreview)}
+          >
+            {showPreview ? 'Edit' : 'Preview'}
+          </button>
+        </div>
+        {showPreview ? (
+          <div className="content-preview">
+            {renderEditableContent(content, handleImageResize)}
+          </div>
+        ) : (
+          <textarea
+            ref={textareaRef}
+            className="content-input"
+            placeholder="type body here"
+            value={content}
+            onChange={e => setContent(e.target.value)}
+          />
+        )}
         <div className="post-actions">
           <input
             ref={fileInputRef}
@@ -515,7 +704,7 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
             type="button"
             className="upload-btn"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
+            disabled={uploading || showPreview}
           >
             {uploading ? 'Uploading...' : 'Add image'}
           </button>
