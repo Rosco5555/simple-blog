@@ -102,11 +102,12 @@ public class AuthController : ControllerBase
         // Remove token (single use)
         _tokens.Remove(token);
 
-        // Set auth cookie
+        // Set auth cookie (SameSite=None for cross-domain, Secure required)
         Response.Cookies.Append(AuthCookieName, "admin", new CookieOptions
         {
             HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.None,
+            Secure = true,
             Expires = DateTimeOffset.UtcNow.AddDays(30)
         });
 
