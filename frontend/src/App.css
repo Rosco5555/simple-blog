@@ -448,6 +448,17 @@ a:hover {
   margin: 12px 0;
 }
 
+.inline-editor .inline-image {
+  display: block;
+  margin: 12px 0;
+  user-select: none;
+}
+
+.inline-editor .inline-image img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
 .post-actions {
   display: flex;
   gap: 12px;
