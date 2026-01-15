@@ -423,38 +423,23 @@ a:hover {
   color: #ccc;
 }
 
-/* Inline Editor */
-.inline-editor {
-  font-family: inherit;
-  font-size: 16px;
-  line-height: 1.75;
-  min-height: 300px;
-  outline: none;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+/* Content Editor */
+.content-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.inline-editor:focus {
-  outline: none;
+.image-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
 }
 
-.inline-editor.empty::before {
-  content: attr(data-placeholder);
-  color: #ccc;
-  pointer-events: none;
-}
-
-.inline-editor .resizable-image {
-  margin: 12px 0;
-}
-
-.inline-editor .inline-image {
-  display: block;
-  margin: 12px 0;
-  user-select: none;
-}
-
-.inline-editor .inline-image img {
+.image-preview img {
   max-width: 100%;
   border-radius: 8px;
 }

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import './App.css';
 
 interface BlogPost {
@@ -271,8 +271,8 @@ function extractContentFromDOM(element: HTMLElement | null): string {
   return result;
 }
 
-// Inline editor component with live image preview
-function InlineEditor({
+// Simple content editor with image preview below
+function ContentEditor({
   content,
   onChange,
   placeholder
@@ -281,104 +281,32 @@ function InlineEditor({
   onChange: (content: string) => void;
   placeholder?: string;
 }) {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const lastContentRef = useRef(content);
-  const [isEmpty, setIsEmpty] = useState(!content.trim());
-
-  // Build DOM content from markdown
-  const buildContent = useCallback((text: string) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-
-    const parts = parseImageMarkdown(text);
-    const hasImages = parts.some(p => p.type === 'image');
-
-    if (!hasImages) {
-      // Simple text - just set textContent
-      editor.textContent = text;
-    } else {
-      // Has images - build mixed content
-      editor.innerHTML = '';
-      parts.forEach((part) => {
-        if (part.type === 'image') {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'inline-image';
-          wrapper.contentEditable = 'false';
-
-          const img = document.createElement('img');
-          img.src = part.url || '';
-          img.alt = part.alt || '';
-          if (part.width) {
-            img.style.width = `${part.width}px`;
-          }
-          img.dataset.markdown = part.value;
-
-          wrapper.appendChild(img);
-          editor.appendChild(wrapper);
-        } else {
-          const textNode = document.createTextNode(part.value);
-          editor.appendChild(textNode);
-        }
-      });
-    }
-    setIsEmpty(!text.trim());
-  }, []);
-
-  // Initialize content on mount
-  useEffect(() => {
-    buildContent(content);
-    lastContentRef.current = content;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Handle external content changes (e.g., image upload)
-  useEffect(() => {
-    if (content !== lastContentRef.current) {
-      buildContent(content);
-      lastContentRef.current = content;
-    }
-  }, [content, buildContent]);
-
-  const handleInput = () => {
-    const editor = editorRef.current;
-    if (!editor) return;
-
-    // Extract content from DOM
-    let result = '';
-    editor.childNodes.forEach((node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        result += node.textContent || '';
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as HTMLElement;
-        if (el.classList.contains('inline-image')) {
-          const img = el.querySelector('img');
-          if (img?.dataset.markdown) {
-            result += img.dataset.markdown;
-          }
-        } else if (el.tagName === 'BR') {
-          result += '\n';
-        } else if (el.tagName === 'DIV' || el.tagName === 'P') {
-          // Handle browser-inserted divs/paragraphs on Enter
-          result += '\n' + (el.textContent || '');
-        } else {
-          result += el.textContent || '';
-        }
-      }
-    });
-
-    lastContentRef.current = result;
-    setIsEmpty(!result.trim());
-    onChange(result);
-  };
+  const parts = parseImageMarkdown(content);
+  const hasImages = parts.some(p => p.type === 'image');
 
   return (
-    <div
-      ref={editorRef}
-      className={`inline-editor ${isEmpty ? 'empty' : ''}`}
-      contentEditable
-      suppressContentEditableWarning
-      onInput={handleInput}
-      data-placeholder={placeholder}
-    />
+    <div className="content-editor">
+      <textarea
+        className="content-input"
+        placeholder={placeholder}
+        value={content}
+        onChange={e => onChange(e.target.value)}
+      />
+      {hasImages && (
+        <div className="image-preview">
+          {parts.map((part, i) =>
+            part.type === 'image' ? (
+              <img
+                key={i}
+                src={part.url}
+                alt={part.alt || ''}
+                style={part.width ? { width: part.width } : {}}
+              />
+            ) : null
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -671,7 +599,7 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
             />
           </span>
         </div>
-        <InlineEditor
+        <ContentEditor
           content={content}
           onChange={setContent}
           placeholder="type body here"
@@ -789,7 +717,7 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
             />
           </span>
         </div>
-        <InlineEditor
+        <ContentEditor
           content={content}
           onChange={setContent}
           placeholder="type body here"
