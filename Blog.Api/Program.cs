@@ -30,7 +30,9 @@ builder.Services.AddOptions();
 builder.Services.AddHttpClient<ResendClient>();
 builder.Services.Configure<ResendClientOptions>(o =>
 {
-    o.ApiToken = builder.Configuration["Resend:ApiKey"] ?? "";
+    o.ApiToken = Environment.GetEnvironmentVariable("RESEND_API_KEY")
+        ?? builder.Configuration["Resend:ApiKey"]
+        ?? "";
 });
 builder.Services.AddTransient<IResend, ResendClient>();
 

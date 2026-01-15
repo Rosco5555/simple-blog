@@ -17,8 +17,12 @@ public class AuthController : ControllerBase
 
     public AuthController(IConfiguration config, IResend resend)
     {
-        _adminEmail = config["Admin:Email"] ?? throw new Exception("Admin:Email not configured");
-        _baseUrl = config["BaseUrl"] ?? "http://localhost:5252";
+        _adminEmail = Environment.GetEnvironmentVariable("ADMIN_EMAIL")
+            ?? config["Admin:Email"]
+            ?? throw new Exception("Admin:Email not configured");
+        _baseUrl = Environment.GetEnvironmentVariable("BASE_URL")
+            ?? config["BaseUrl"]
+            ?? "http://localhost:5252";
         _resend = resend;
     }
 
