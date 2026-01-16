@@ -23,6 +23,7 @@ builder.Services.AddSingleton<IBlogPostStore>(new BlogPostStore(connectionString
 builder.Services.AddSingleton<IUserStore>(new UserStore(connectionString));
 builder.Services.AddSingleton<IBlogPostService, BlogPostService>();
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 
 // CORS - allow configured origins or defaults for local dev
 var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',')

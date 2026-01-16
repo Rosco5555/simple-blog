@@ -15,6 +15,7 @@ const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5252';
 const API_URL = `${API_BASE}/api/posts`;
 const AUTH_URL = `${API_BASE}/api/auth`;
 const IMAGE_URL = `${API_BASE}/api/images`;
+const MOVIES_URL = `${API_BASE}/api/movies`;
 
 // Token management
 const TOKEN_KEY = 'rb_auth_token';
@@ -141,6 +142,214 @@ function renderContent(content: string) {
   });
 }
 
+// Movie types
+interface Movie {
+  id: number;
+  title: string;
+  posterPath: string | null;
+  releaseDate: string | null;
+  overview: string | null;
+}
+
+const LIKED_MOVIES_KEY = 'rb_liked_movies';
+const SEEN_MOVIES_KEY = 'rb_seen_movies';
+
+function Recommend() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Movie[]>([]);
+  const [likedMovies, setLikedMovies] = useState<Movie[]>(() => {
+    const saved = localStorage.getItem(LIKED_MOVIES_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [seenIds, setSeenIds] = useState<number[]>(() => {
+    const saved = localStorage.getItem(SEEN_MOVIES_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [recommendations, setRecommendations] = useState<Movie[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [searching, setSearching] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Save liked movies to localStorage
+  useEffect(() => {
+    localStorage.setItem(LIKED_MOVIES_KEY, JSON.stringify(likedMovies));
+  }, [likedMovies]);
+
+  // Save seen movies to localStorage
+  useEffect(() => {
+    localStorage.setItem(SEEN_MOVIES_KEY, JSON.stringify(seenIds));
+  }, [seenIds]);
+
+  // Search movies with debounce
+  useEffect(() => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    searchTimeout.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`${MOVIES_URL}/search?q=${encodeURIComponent(searchQuery)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+        }
+      } catch (err) {
+        console.error('Search failed:', err);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    };
+  }, [searchQuery]);
+
+  const addMovie = (movie: Movie) => {
+    if (!likedMovies.find(m => m.id === movie.id)) {
+      setLikedMovies([...likedMovies, movie]);
+    }
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const removeMovie = (id: number) => {
+    setLikedMovies(likedMovies.filter(m => m.id !== id));
+  };
+
+  const getRecommendations = async () => {
+    if (likedMovies.length === 0) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${MOVIES_URL}/recommend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          movieIds: likedMovies.map(m => m.id),
+          excludeIds: seenIds
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setRecommendations(data.recommendations || []);
+        setCurrentIndex(0);
+      }
+    } catch (err) {
+      console.error('Failed to get recommendations:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markSeen = () => {
+    const current = recommendations[currentIndex];
+    if (current) {
+      setSeenIds([...seenIds, current.id]);
+      if (currentIndex < recommendations.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        // Fetch more recommendations
+        getRecommendations();
+      }
+    }
+  };
+
+  const currentRecommendation = recommendations[currentIndex];
+  const posterUrl = currentRecommendation?.posterPath
+    ? `https://image.tmdb.org/t/p/w500${currentRecommendation.posterPath}`
+    : null;
+
+  return (
+    <div className="recommend-page">
+      <Link to="/" className="back-link">&larr; Back to posts</Link>
+
+      <h2>Movie Recommendations</h2>
+      <p className="recommend-intro">Add movies you like, and we'll recommend similar ones!</p>
+
+      <div className="movie-search">
+        <input
+          type="text"
+          placeholder="Search for a movie..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="movie-search-input"
+        />
+        {searching && <div className="search-loading">Searching...</div>}
+        {searchResults.length > 0 && (
+          <div className="search-results">
+            {searchResults.map(movie => (
+              <button
+                key={movie.id}
+                className="search-result-item"
+                onClick={() => addMovie(movie)}
+              >
+                <span className="movie-title">{movie.title}</span>
+                {movie.releaseDate && (
+                  <span className="movie-year">({movie.releaseDate.split('-')[0]})</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {likedMovies.length > 0 && (
+        <div className="liked-movies">
+          <h3>Movies you like:</h3>
+          <div className="liked-movies-list">
+            {likedMovies.map(movie => (
+              <div key={movie.id} className="liked-movie-chip">
+                <span>{movie.title}</span>
+                <button onClick={() => removeMovie(movie.id)} className="remove-movie">&times;</button>
+              </div>
+            ))}
+          </div>
+          <button
+            className="get-recommendations-btn"
+            onClick={getRecommendations}
+            disabled={loading}
+          >
+            {loading ? 'Finding movies...' : 'Get Recommendations'}
+          </button>
+        </div>
+      )}
+
+      {currentRecommendation && (
+        <div className="recommendation">
+          <h3>You might like:</h3>
+          <div className="recommendation-card">
+            {posterUrl && (
+              <img src={posterUrl} alt={currentRecommendation.title} className="recommendation-poster" />
+            )}
+            <div className="recommendation-info">
+              <h4>{currentRecommendation.title}</h4>
+              {currentRecommendation.releaseDate && (
+                <p className="recommendation-year">{currentRecommendation.releaseDate.split('-')[0]}</p>
+              )}
+              {currentRecommendation.overview && (
+                <p className="recommendation-overview">{currentRecommendation.overview}</p>
+              )}
+              <button className="seen-btn" onClick={markSeen}>
+                Seen it - show another
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p className="tmdb-attribution">
+        This product uses the TMDb API but is not endorsed or certified by TMDb.
+      </p>
+    </div>
+  );
+}
 
 function Layout({ children, posts, isAdmin, onLogout }: { children: React.ReactNode; posts: BlogPost[]; isAdmin: boolean; onLogout: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -646,6 +855,7 @@ function App() {
           <Route path="/edit/:id" element={isAdmin ? <EditPost posts={posts} onPostUpdated={fetchPosts} /> : <LoginForm onLogin={() => { checkAuth(); }} />} />
           <Route path="/new" element={isAdmin ? <NewPost onPostCreated={fetchPosts} /> : <LoginForm onLogin={() => { checkAuth(); }} />} />
           <Route path="/login" element={<LoginForm onLogin={() => { checkAuth(); }} />} />
+          <Route path="/recommend" element={<Recommend />} />
         </Routes>
       </Layout>
     </BrowserRouter>
