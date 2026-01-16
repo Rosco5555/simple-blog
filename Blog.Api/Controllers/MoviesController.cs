@@ -74,13 +74,14 @@ public class MoviesController : ControllerBase
 
         var allCandidates = new Dictionary<int, (MovieResult Movie, int Score, HashSet<int> Genres)>();
         var inputGenres = new HashSet<int>();
+        var inputDirectors = new HashSet<int>();
 
         try
         {
-            // First, get genres from input movies
+            // First, get genres and directors from input movies
             foreach (var movieId in request.MovieIds)
             {
-                var detailUrl = $"{TmdbBaseUrl}/movie/{movieId}?api_key={_apiKey}";
+                var detailUrl = $"{TmdbBaseUrl}/movie/{movieId}?api_key={_apiKey}&append_to_response=credits";
                 try
                 {
                     var detailResponse = await _http.GetStringAsync(detailUrl);
@@ -90,6 +91,20 @@ public class MoviesController : ControllerBase
                         foreach (var genre in genres.EnumerateArray())
                         {
                             inputGenres.Add(genre.GetProperty("id").GetInt32());
+                        }
+                    }
+                    // Extract directors from credits
+                    if (detailJson.RootElement.TryGetProperty("credits", out var credits) &&
+                        credits.TryGetProperty("crew", out var crew))
+                    {
+                        foreach (var member in crew.EnumerateArray())
+                        {
+                            if (member.TryGetProperty("job", out var job) &&
+                                job.GetString() == "Director" &&
+                                member.TryGetProperty("id", out var directorId))
+                            {
+                                inputDirectors.Add(directorId.GetInt32());
+                            }
                         }
                     }
                 }
@@ -141,14 +156,51 @@ public class MoviesController : ControllerBase
                 }
             }
 
-            // Score by: appearances + genre overlap with input movies
-            var recommendations = allCandidates.Values
+            // Initial score by: appearances + genre overlap
+            var scoredCandidates = allCandidates.Values
                 .Select(x => {
                     var genreOverlap = x.Genres.Intersect(inputGenres).Count();
-                    var totalScore = x.Score * 2 + genreOverlap; // Weight appearances more
-                    return (x.Movie, totalScore);
+                    var initialScore = x.Score * 2 + genreOverlap;
+                    return (x.Movie, initialScore);
                 })
-                .OrderByDescending(x => x.totalScore)
+                .OrderByDescending(x => x.initialScore)
+                .Take(30) // Limit to top 30 for director lookup
+                .ToList();
+
+            // Fetch credits for top candidates to check director overlap
+            var finalScores = new List<(MovieResult Movie, int Score)>();
+            foreach (var (movie, initialScore) in scoredCandidates)
+            {
+                var directorBonus = 0;
+                if (inputDirectors.Count > 0)
+                {
+                    try
+                    {
+                        var creditsUrl = $"{TmdbBaseUrl}/movie/{movie.Id}/credits?api_key={_apiKey}";
+                        var creditsResponse = await _http.GetStringAsync(creditsUrl);
+                        var creditsJson = JsonDocument.Parse(creditsResponse);
+                        if (creditsJson.RootElement.TryGetProperty("crew", out var crew))
+                        {
+                            foreach (var member in crew.EnumerateArray())
+                            {
+                                if (member.TryGetProperty("job", out var job) &&
+                                    job.GetString() == "Director" &&
+                                    member.TryGetProperty("id", out var directorId) &&
+                                    inputDirectors.Contains(directorId.GetInt32()))
+                                {
+                                    directorBonus = 5; // Strong bonus for same director
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch { /* continue without director bonus */ }
+                }
+                finalScores.Add((movie, initialScore + directorBonus));
+            }
+
+            var recommendations = finalScores
+                .OrderByDescending(x => x.Score)
                 .Select(x => x.Movie)
                 .ToList();
 
