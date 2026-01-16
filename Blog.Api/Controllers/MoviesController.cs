@@ -20,7 +20,8 @@ public class MoviesController : ControllerBase
     }
 
     public record MovieResult(int Id, string Title, string? PosterPath, string? ReleaseDate, string? Overview);
-    public record RecommendRequest(List<int> MovieIds, List<int>? ExcludeIds);
+    public record DirectorResult(int Id, string Name, string? ProfilePath);
+    public record RecommendRequest(List<int> MovieIds, List<int>? DirectorIds, List<int>? ExcludeIds);
 
     [HttpGet("search")]
     public async Task<ActionResult> Search([FromQuery] string q)
@@ -59,16 +60,59 @@ public class MoviesController : ControllerBase
         }
     }
 
-    [HttpPost("recommend")]
-    public async Task<ActionResult> Recommend([FromBody] RecommendRequest request)
+    [HttpGet("directors/search")]
+    public async Task<ActionResult> SearchDirectors([FromQuery] string q)
     {
-        if (request.MovieIds == null || request.MovieIds.Count == 0)
-            return BadRequest(new { error = "At least one movie ID required" });
+        if (string.IsNullOrWhiteSpace(q))
+            return BadRequest(new { error = "Query required" });
 
         if (string.IsNullOrEmpty(_apiKey))
             return StatusCode(500, new { error = "TMDb API key not configured" });
 
-        var excludeSet = new HashSet<int>(request.MovieIds);
+        var url = $"{TmdbBaseUrl}/search/person?api_key={_apiKey}&query={Uri.EscapeDataString(q)}";
+
+        try
+        {
+            var response = await _http.GetStringAsync(url);
+            var json = JsonDocument.Parse(response);
+            var results = json.RootElement.GetProperty("results");
+
+            var directors = new List<DirectorResult>();
+            foreach (var person in results.EnumerateArray().Take(10))
+            {
+                // Filter to people known for directing
+                if (person.TryGetProperty("known_for_department", out var dept) &&
+                    dept.GetString() == "Directing")
+                {
+                    directors.Add(new DirectorResult(
+                        person.GetProperty("id").GetInt32(),
+                        person.GetProperty("name").GetString() ?? "",
+                        person.TryGetProperty("profile_path", out var profile) ? profile.GetString() : null
+                    ));
+                }
+            }
+
+            return Ok(directors);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Failed to search directors", details = ex.Message });
+        }
+    }
+
+    [HttpPost("recommend")]
+    public async Task<ActionResult> Recommend([FromBody] RecommendRequest request)
+    {
+        var hasMovies = request.MovieIds != null && request.MovieIds.Count > 0;
+        var hasDirectors = request.DirectorIds != null && request.DirectorIds.Count > 0;
+
+        if (!hasMovies && !hasDirectors)
+            return BadRequest(new { error = "At least one movie or director required" });
+
+        if (string.IsNullOrEmpty(_apiKey))
+            return StatusCode(500, new { error = "TMDb API key not configured" });
+
+        var excludeSet = new HashSet<int>(request.MovieIds ?? new List<int>());
         if (request.ExcludeIds != null)
             excludeSet.UnionWith(request.ExcludeIds);
 
@@ -76,10 +120,78 @@ public class MoviesController : ControllerBase
         var inputGenres = new HashSet<int>();
         var inputDirectors = new HashSet<int>();
 
+        // Add user-specified favorite directors
+        if (request.DirectorIds != null)
+        {
+            foreach (var directorId in request.DirectorIds)
+            {
+                inputDirectors.Add(directorId);
+            }
+        }
+
         try
         {
-            // First, get genres and directors from input movies
-            foreach (var movieId in request.MovieIds)
+            // Fetch top movies from favorite directors to seed recommendations
+            if (hasDirectors)
+            {
+                foreach (var directorId in request.DirectorIds!)
+                {
+                    try
+                    {
+                        var creditsUrl = $"{TmdbBaseUrl}/person/{directorId}/movie_credits?api_key={_apiKey}";
+                        var creditsResponse = await _http.GetStringAsync(creditsUrl);
+                        var creditsJson = JsonDocument.Parse(creditsResponse);
+                        if (creditsJson.RootElement.TryGetProperty("crew", out var crew))
+                        {
+                            // Get movies this person directed, sorted by popularity
+                            var directedMovies = crew.EnumerateArray()
+                                .Where(m => m.TryGetProperty("job", out var job) && job.GetString() == "Director")
+                                .OrderByDescending(m => m.TryGetProperty("popularity", out var pop) ? pop.GetDouble() : 0)
+                                .Take(5);
+
+                            foreach (var movie in directedMovies)
+                            {
+                                var id = movie.GetProperty("id").GetInt32();
+                                if (excludeSet.Contains(id))
+                                    continue;
+
+                                var movieGenres = new HashSet<int>();
+                                if (movie.TryGetProperty("genre_ids", out var genreIds))
+                                {
+                                    foreach (var gid in genreIds.EnumerateArray())
+                                    {
+                                        movieGenres.Add(gid.GetInt32());
+                                    }
+                                }
+
+                                var movieResult = new MovieResult(
+                                    id,
+                                    movie.GetProperty("title").GetString() ?? "",
+                                    movie.TryGetProperty("poster_path", out var poster) ? poster.GetString() : null,
+                                    movie.TryGetProperty("release_date", out var date) ? date.GetString() : null,
+                                    movie.TryGetProperty("overview", out var overview) ? overview.GetString() : null
+                                );
+
+                                // High score for movies by favorite directors
+                                if (allCandidates.ContainsKey(id))
+                                {
+                                    var existing = allCandidates[id];
+                                    existing.Genres.UnionWith(movieGenres);
+                                    allCandidates[id] = (movieResult, existing.Score + 5, existing.Genres);
+                                }
+                                else
+                                {
+                                    allCandidates[id] = (movieResult, 5, movieGenres);
+                                }
+                            }
+                        }
+                    }
+                    catch { /* continue if director credits fetch fails */ }
+                }
+            }
+
+            // Get genres and directors from input movies
+            foreach (var movieId in request.MovieIds ?? new List<int>())
             {
                 var detailUrl = $"{TmdbBaseUrl}/movie/{movieId}?api_key={_apiKey}&append_to_response=credits";
                 try
@@ -112,7 +224,7 @@ public class MoviesController : ControllerBase
             }
 
             // Fetch recommendations (better than similar) for each input movie
-            foreach (var movieId in request.MovieIds)
+            foreach (var movieId in request.MovieIds ?? new List<int>())
             {
                 // Use recommendations endpoint - gives better results than similar
                 var url = $"{TmdbBaseUrl}/movie/{movieId}/recommendations?api_key={_apiKey}";

@@ -151,14 +151,27 @@ interface Movie {
   overview: string | null;
 }
 
+interface Director {
+  id: number;
+  name: string;
+  profilePath: string | null;
+}
+
 const LIKED_MOVIES_KEY = 'rb_liked_movies';
+const LIKED_DIRECTORS_KEY = 'rb_liked_directors';
 const SEEN_MOVIES_KEY = 'rb_seen_movies';
 
 function Recommend() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
+  const [directorQuery, setDirectorQuery] = useState('');
+  const [directorResults, setDirectorResults] = useState<Director[]>([]);
   const [likedMovies, setLikedMovies] = useState<Movie[]>(() => {
     const saved = localStorage.getItem(LIKED_MOVIES_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [likedDirectors, setLikedDirectors] = useState<Director[]>(() => {
+    const saved = localStorage.getItem(LIKED_DIRECTORS_KEY);
     return saved ? JSON.parse(saved) : [];
   });
   const [seenIds, setSeenIds] = useState<number[]>(() => {
@@ -168,13 +181,20 @@ function Recommend() {
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [searching, setSearching] = useState(false);
+  const [searchingDirectors, setSearchingDirectors] = useState(false);
   const [loading, setLoading] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const directorSearchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Save liked movies to localStorage
   useEffect(() => {
     localStorage.setItem(LIKED_MOVIES_KEY, JSON.stringify(likedMovies));
   }, [likedMovies]);
+
+  // Save liked directors to localStorage
+  useEffect(() => {
+    localStorage.setItem(LIKED_DIRECTORS_KEY, JSON.stringify(likedDirectors));
+  }, [likedDirectors]);
 
   // Save seen movies to localStorage
   useEffect(() => {
@@ -210,6 +230,35 @@ function Recommend() {
     };
   }, [searchQuery]);
 
+  // Search directors with debounce
+  useEffect(() => {
+    if (directorSearchTimeout.current) clearTimeout(directorSearchTimeout.current);
+
+    if (!directorQuery.trim()) {
+      setDirectorResults([]);
+      return;
+    }
+
+    directorSearchTimeout.current = setTimeout(async () => {
+      setSearchingDirectors(true);
+      try {
+        const res = await fetch(`${MOVIES_URL}/directors/search?q=${encodeURIComponent(directorQuery)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDirectorResults(data);
+        }
+      } catch (err) {
+        console.error('Director search failed:', err);
+      } finally {
+        setSearchingDirectors(false);
+      }
+    }, 300);
+
+    return () => {
+      if (directorSearchTimeout.current) clearTimeout(directorSearchTimeout.current);
+    };
+  }, [directorQuery]);
+
   const addMovie = (movie: Movie) => {
     if (!likedMovies.find(m => m.id === movie.id)) {
       setLikedMovies([...likedMovies, movie]);
@@ -222,8 +271,20 @@ function Recommend() {
     setLikedMovies(likedMovies.filter(m => m.id !== id));
   };
 
+  const addDirector = (director: Director) => {
+    if (!likedDirectors.find(d => d.id === director.id)) {
+      setLikedDirectors([...likedDirectors, director]);
+    }
+    setDirectorQuery('');
+    setDirectorResults([]);
+  };
+
+  const removeDirector = (id: number) => {
+    setLikedDirectors(likedDirectors.filter(d => d.id !== id));
+  };
+
   const getRecommendations = async () => {
-    if (likedMovies.length === 0) return;
+    if (likedMovies.length === 0 && likedDirectors.length === 0) return;
 
     setLoading(true);
     try {
@@ -232,6 +293,7 @@ function Recommend() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           movieIds: likedMovies.map(m => m.id),
+          directorIds: likedDirectors.map(d => d.id),
           excludeIds: seenIds
         })
       });
@@ -273,44 +335,91 @@ function Recommend() {
       <h2>Movie Recommendations</h2>
       <p className="recommend-intro">Add movies you like, and we'll recommend similar ones!</p>
 
-      <div className="movie-search">
-        <input
-          type="text"
-          placeholder="Search for a movie..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="movie-search-input"
-        />
-        {searching && <div className="search-loading">Searching...</div>}
-        {searchResults.length > 0 && (
-          <div className="search-results">
-            {searchResults.map(movie => (
-              <button
-                key={movie.id}
-                className="search-result-item"
-                onClick={() => addMovie(movie)}
-              >
-                <span className="movie-title">{movie.title}</span>
-                {movie.releaseDate && (
-                  <span className="movie-year">({movie.releaseDate.split('-')[0]})</span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="search-sections">
+        <div className="movie-search">
+          <h3>Add movies you like</h3>
+          <input
+            type="text"
+            placeholder="Search for a movie..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="movie-search-input"
+          />
+          {searching && <div className="search-loading">Searching...</div>}
+          {searchResults.length > 0 && (
+            <div className="search-results">
+              {searchResults.map(movie => (
+                <button
+                  key={movie.id}
+                  className="search-result-item"
+                  onClick={() => addMovie(movie)}
+                >
+                  <span className="movie-title">{movie.title}</span>
+                  {movie.releaseDate && (
+                    <span className="movie-year">({movie.releaseDate.split('-')[0]})</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="director-search">
+          <h3>Add favorite directors</h3>
+          <input
+            type="text"
+            placeholder="Search for a director..."
+            value={directorQuery}
+            onChange={e => setDirectorQuery(e.target.value)}
+            className="movie-search-input"
+          />
+          {searchingDirectors && <div className="search-loading">Searching...</div>}
+          {directorResults.length > 0 && (
+            <div className="search-results">
+              {directorResults.map(director => (
+                <button
+                  key={director.id}
+                  className="search-result-item"
+                  onClick={() => addDirector(director)}
+                >
+                  <span className="movie-title">{director.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {likedMovies.length > 0 && (
-        <div className="liked-movies">
-          <h3>Movies you like:</h3>
-          <div className="liked-movies-list">
-            {likedMovies.map(movie => (
-              <div key={movie.id} className="liked-movie-chip">
-                <span>{movie.title}</span>
-                <button onClick={() => removeMovie(movie.id)} className="remove-movie">&times;</button>
+      {(likedMovies.length > 0 || likedDirectors.length > 0) && (
+        <div className="liked-section">
+          {likedMovies.length > 0 && (
+            <div className="liked-movies">
+              <h3>Movies you like:</h3>
+              <div className="liked-movies-list">
+                {likedMovies.map(movie => (
+                  <div key={movie.id} className="liked-movie-chip">
+                    <span>{movie.title}</span>
+                    <button onClick={() => removeMovie(movie.id)} className="remove-movie">&times;</button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {likedDirectors.length > 0 && (
+            <div className="liked-directors">
+              <h3>Directors you like:</h3>
+              <div className="liked-movies-list">
+                {likedDirectors.map(director => (
+                  <div key={director.id} className="liked-movie-chip director-chip">
+                    <span>{director.name}</span>
+                    <button onClick={() => removeDirector(director.id)} className="remove-movie">&times;</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button
             className="get-recommendations-btn"
             onClick={getRecommendations}

@@ -631,9 +631,29 @@ a:hover {
   margin-bottom: 24px;
 }
 
-.movie-search {
-  position: relative;
+.search-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
   margin-bottom: 24px;
+}
+
+@media (max-width: 600px) {
+  .search-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+.search-sections h3 {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.movie-search,
+.director-search {
+  position: relative;
 }
 
 .movie-search-input {
@@ -692,14 +712,24 @@ a:hover {
   font-size: 14px;
 }
 
-.liked-movies {
+.liked-section {
   margin-bottom: 32px;
+  padding: 20px;
+  background: #f9f9f9;
+  border-radius: 12px;
 }
 
-.liked-movies h3 {
-  font-size: 16px;
+.liked-movies,
+.liked-directors {
+  margin-bottom: 16px;
+}
+
+.liked-movies h3,
+.liked-directors h3 {
+  font-size: 14px;
   margin-bottom: 12px;
   color: #666;
+  font-weight: 500;
 }
 
 .liked-movies-list {
@@ -714,9 +744,13 @@ a:hover {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #f0f0f0;
+  background: #e8f4f8;
   border-radius: 20px;
   font-size: 14px;
+}
+
+.liked-movie-chip.director-chip {
+  background: #f4e8f8;
 }
 
 .remove-movie {
