@@ -72,14 +72,35 @@ public class MoviesController : ControllerBase
         if (request.ExcludeIds != null)
             excludeSet.UnionWith(request.ExcludeIds);
 
-        var allSimilar = new Dictionary<int, (MovieResult Movie, int Score)>();
+        var allCandidates = new Dictionary<int, (MovieResult Movie, int Score, HashSet<int> Genres)>();
+        var inputGenres = new HashSet<int>();
 
         try
         {
-            // Fetch similar movies for each input movie
+            // First, get genres from input movies
             foreach (var movieId in request.MovieIds)
             {
-                var url = $"{TmdbBaseUrl}/movie/{movieId}/similar?api_key={_apiKey}";
+                var detailUrl = $"{TmdbBaseUrl}/movie/{movieId}?api_key={_apiKey}";
+                try
+                {
+                    var detailResponse = await _http.GetStringAsync(detailUrl);
+                    var detailJson = JsonDocument.Parse(detailResponse);
+                    if (detailJson.RootElement.TryGetProperty("genres", out var genres))
+                    {
+                        foreach (var genre in genres.EnumerateArray())
+                        {
+                            inputGenres.Add(genre.GetProperty("id").GetInt32());
+                        }
+                    }
+                }
+                catch { /* continue if detail fetch fails */ }
+            }
+
+            // Fetch recommendations (better than similar) for each input movie
+            foreach (var movieId in request.MovieIds)
+            {
+                // Use recommendations endpoint - gives better results than similar
+                var url = $"{TmdbBaseUrl}/movie/{movieId}/recommendations?api_key={_apiKey}";
                 var response = await _http.GetStringAsync(url);
                 var json = JsonDocument.Parse(response);
                 var results = json.RootElement.GetProperty("results");
@@ -90,6 +111,15 @@ public class MoviesController : ControllerBase
                     if (excludeSet.Contains(id))
                         continue;
 
+                    var movieGenres = new HashSet<int>();
+                    if (movie.TryGetProperty("genre_ids", out var genreIds))
+                    {
+                        foreach (var gid in genreIds.EnumerateArray())
+                        {
+                            movieGenres.Add(gid.GetInt32());
+                        }
+                    }
+
                     var movieResult = new MovieResult(
                         id,
                         movie.GetProperty("title").GetString() ?? "",
@@ -98,20 +128,27 @@ public class MoviesController : ControllerBase
                         movie.TryGetProperty("overview", out var overview) ? overview.GetString() : null
                     );
 
-                    if (allSimilar.ContainsKey(id))
+                    if (allCandidates.ContainsKey(id))
                     {
-                        allSimilar[id] = (movieResult, allSimilar[id].Score + 1);
+                        var existing = allCandidates[id];
+                        existing.Genres.UnionWith(movieGenres);
+                        allCandidates[id] = (movieResult, existing.Score + 1, existing.Genres);
                     }
                     else
                     {
-                        allSimilar[id] = (movieResult, 1);
+                        allCandidates[id] = (movieResult, 1, movieGenres);
                     }
                 }
             }
 
-            // Sort by score (movies similar to multiple inputs ranked higher)
-            var recommendations = allSimilar.Values
-                .OrderByDescending(x => x.Score)
+            // Score by: appearances + genre overlap with input movies
+            var recommendations = allCandidates.Values
+                .Select(x => {
+                    var genreOverlap = x.Genres.Intersect(inputGenres).Count();
+                    var totalScore = x.Score * 2 + genreOverlap; // Weight appearances more
+                    return (x.Movie, totalScore);
+                })
+                .OrderByDescending(x => x.totalScore)
                 .Select(x => x.Movie)
                 .ToList();
 
