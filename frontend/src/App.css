@@ -819,9 +819,20 @@ a:hover {
   margin: 0 0 8px 0;
 }
 
+.recommendation-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .recommendation-year {
   color: #888;
-  margin: 0 0 12px 0;
+}
+
+.recommendation-rating {
+  color: #f5c518;
+  font-weight: 600;
 }
 
 .recommendation-overview {

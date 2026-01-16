@@ -19,7 +19,7 @@ public class MoviesController : ControllerBase
             ?? "";
     }
 
-    public record MovieResult(int Id, string Title, string? PosterPath, string? ReleaseDate, string? Overview);
+    public record MovieResult(int Id, string Title, string? PosterPath, string? ReleaseDate, string? Overview, double? VoteAverage);
     public record DirectorResult(int Id, string Name, string? ProfilePath);
     public record RecommendRequest(List<int> MovieIds, List<int>? DirectorIds, List<int>? ExcludeIds);
 
@@ -48,7 +48,8 @@ public class MoviesController : ControllerBase
                     movie.GetProperty("title").GetString() ?? "",
                     movie.TryGetProperty("poster_path", out var poster) ? poster.GetString() : null,
                     movie.TryGetProperty("release_date", out var date) ? date.GetString() : null,
-                    movie.TryGetProperty("overview", out var overview) ? overview.GetString() : null
+                    movie.TryGetProperty("overview", out var overview) ? overview.GetString() : null,
+                    movie.TryGetProperty("vote_average", out var vote) ? vote.GetDouble() : null
                 ));
             }
 
@@ -169,7 +170,8 @@ public class MoviesController : ControllerBase
                                     movie.GetProperty("title").GetString() ?? "",
                                     movie.TryGetProperty("poster_path", out var poster) ? poster.GetString() : null,
                                     movie.TryGetProperty("release_date", out var date) ? date.GetString() : null,
-                                    movie.TryGetProperty("overview", out var overview) ? overview.GetString() : null
+                                    movie.TryGetProperty("overview", out var overview) ? overview.GetString() : null,
+                                    movie.TryGetProperty("vote_average", out var vote) ? vote.GetDouble() : null
                                 );
 
                                 // High score for movies by favorite directors
@@ -252,7 +254,8 @@ public class MoviesController : ControllerBase
                         movie.GetProperty("title").GetString() ?? "",
                         movie.TryGetProperty("poster_path", out var poster) ? poster.GetString() : null,
                         movie.TryGetProperty("release_date", out var date) ? date.GetString() : null,
-                        movie.TryGetProperty("overview", out var overview) ? overview.GetString() : null
+                        movie.TryGetProperty("overview", out var overview) ? overview.GetString() : null,
+                        movie.TryGetProperty("vote_average", out var vote) ? vote.GetDouble() : null
                     );
 
                     if (allCandidates.ContainsKey(id))

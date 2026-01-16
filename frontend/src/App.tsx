@@ -149,6 +149,7 @@ interface Movie {
   posterPath: string | null;
   releaseDate: string | null;
   overview: string | null;
+  voteAverage: number | null;
 }
 
 interface Director {
@@ -439,9 +440,14 @@ function Recommend() {
             )}
             <div className="recommendation-info">
               <h4>{currentRecommendation.title}</h4>
-              {currentRecommendation.releaseDate && (
-                <p className="recommendation-year">{currentRecommendation.releaseDate.split('-')[0]}</p>
-              )}
+              <div className="recommendation-meta">
+                {currentRecommendation.releaseDate && (
+                  <span className="recommendation-year">{currentRecommendation.releaseDate.split('-')[0]}</span>
+                )}
+                {currentRecommendation.voteAverage && (
+                  <span className="recommendation-rating">★ {currentRecommendation.voteAverage.toFixed(1)}</span>
+                )}
+              </div>
               {currentRecommendation.overview && (
                 <p className="recommendation-overview">{currentRecommendation.overview}</p>
               )}
