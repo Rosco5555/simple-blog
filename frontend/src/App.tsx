@@ -599,10 +599,11 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
             />
           </span>
         </div>
-        <ContentEditor
-          content={content}
-          onChange={setContent}
+        <textarea
+          className="content-input"
           placeholder="type body here"
+          value={content}
+          onChange={e => setContent(e.target.value)}
         />
         <div className="post-actions">
           <input
@@ -717,10 +718,11 @@ function EditPost({ posts, onPostUpdated }: { posts: BlogPost[]; onPostUpdated: 
             />
           </span>
         </div>
-        <ContentEditor
-          content={content}
-          onChange={setContent}
+        <textarea
+          className="content-input"
           placeholder="type body here"
+          value={content}
+          onChange={e => setContent(e.target.value)}
         />
         <div className="post-actions">
           <input
