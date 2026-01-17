@@ -625,6 +625,21 @@ function Home({ posts, loading }: { posts: BlogPost[]; loading: boolean }) {
           <div className="content">{renderContent(post.content.substring(0, 300))}...</div>
         </article>
       ))}
+
+      <Link to="/recommend" className="feature-card">
+        <div className="feature-card-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+            <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
+          </svg>
+        </div>
+        <div className="feature-card-content">
+          <h3>Movie Recommendations</h3>
+          <p>Get personalized movie suggestions based on your favorites</p>
+        </div>
+        <svg className="feature-card-arrow" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+        </svg>
+      </Link>
     </>
   );
 }

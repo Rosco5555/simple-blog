@@ -616,6 +616,64 @@ a:hover {
   width: 60%;
 }
 
+/* Feature Card (Home Navigation) */
+.feature-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  margin-top: 16px;
+  background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
+  border-radius: 12px;
+  color: white;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feature-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  color: white;
+}
+
+.feature-card-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.15);
+  border-radius: 10px;
+}
+
+.feature-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.feature-card-content h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.feature-card-content p {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  margin: 0;
+}
+
+.feature-card-arrow {
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.feature-card:hover .feature-card-arrow {
+  opacity: 1;
+  transform: translateX(4px);
+}
+
 /* Movie Recommendations */
 .recommend-page {
   max-width: 600px;
@@ -641,6 +699,55 @@ a:hover {
 @media (max-width: 600px) {
   .search-sections {
     grid-template-columns: 1fr;
+  }
+
+  .recommendation-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .recommendation-poster {
+    width: 200px;
+    max-width: 100%;
+  }
+
+  .recommendation-info {
+    width: 100%;
+  }
+
+  .recommendation-meta {
+    justify-content: center;
+  }
+
+  .recommendation-overview {
+    text-align: left;
+  }
+
+  .liked-section {
+    padding: 16px;
+  }
+
+  .feature-card {
+    padding: 16px;
+  }
+
+  .feature-card-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .feature-card-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .feature-card-content h3 {
+    font-size: 15px;
+  }
+
+  .feature-card-content p {
+    font-size: 12px;
   }
 }
 
