@@ -11,7 +11,7 @@ interface BlogPost {
   authorName?: string;
 }
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5252';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5252';
 const API_URL = `${API_BASE}/api/posts`;
 const AUTH_URL = `${API_BASE}/api/auth`;
 const IMAGE_URL = `${API_BASE}/api/images`;
