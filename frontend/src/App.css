@@ -1199,6 +1199,26 @@ a:hover {
   gap: 16px;
 }
 
+.admin-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #666;
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.admin-login-btn:hover {
+  color: #1a1a1a;
+  border-color: #1a1a1a;
+  background: #f5f5f5;
+}
+
 .load-more-btn {
   width: 100%;
   padding: 14px 24px;

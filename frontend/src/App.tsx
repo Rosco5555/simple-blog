@@ -954,9 +954,14 @@ function PostSkeleton() {
   );
 }
 
-function Home() {
+function Home({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="landing-page">
+      {!isAdmin && (
+        <Link to="/login" className="admin-login-btn">
+          Login as Admin
+        </Link>
+      )}
       <Link to="/posts" className="feature-card feature-card-posts">
         <div className="feature-card-icon">
           <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
@@ -1381,7 +1386,7 @@ function App() {
     <BrowserRouter>
       <Layout isAdmin={isAdmin} onLogout={handleLogout}>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Home isAdmin={isAdmin} />} />
           <Route path="/posts" element={<Posts posts={posts} loading={postsLoading} />} />
           <Route path="/post/:id" element={<Post posts={posts} isAdmin={isAdmin} onPostDeleted={fetchPosts} />} />
           <Route path="/edit/:id" element={isAdmin ? <EditPost posts={posts} onPostUpdated={fetchPosts} /> : <LoginForm onLogin={() => { checkAuth(); }} />} />
