@@ -1464,7 +1464,12 @@ function Posts({ posts, loading, isAdmin, onPostDeleted }: { posts: BlogPost[]; 
   if (posts.length === 0) {
     return (
       <>
-        <Link to="/" className="back-link">&larr; Home</Link>
+        <div className="posts-header">
+          <Link to="/" className="back-link">&larr; Home</Link>
+          {isAdmin && (
+            <Link to="/new" className="new-post-btn">+ New Post</Link>
+          )}
+        </div>
         <p className="empty-state">No posts yet.</p>
       </>
     );
