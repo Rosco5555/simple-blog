@@ -17,7 +17,6 @@ const AUTH_URL = `${API_BASE}/api/auth`;
 const IMAGE_URL = `${API_BASE}/api/images`;
 const MOVIES_URL = `${API_BASE}/api/movies`;
 const STRAVA_URL = `${API_BASE}/api/strava`;
-const CUBING_URL = `${API_BASE}/api/cubing`;
 
 // Token management
 const TOKEN_KEY = 'rb_auth_token';
@@ -897,116 +896,60 @@ function calculateAverage(solves: CubeSolve[], count: number): number | null {
   return trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
 }
 
+const CUBING_SOLVES_KEY = 'rb_cubing_solves';
+
 function Cubing() {
-  const [solves, setSolves] = useState<CubeSolve[]>([]);
+  const [solves, setSolves] = useState<CubeSolve[]>(() => {
+    const saved = localStorage.getItem(CUBING_SOLVES_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [timerState, setTimerState] = useState<'idle' | 'ready' | 'running' | 'stopped'>('idle');
   const [startTime, setStartTime] = useState<number>(0);
   const [displayTime, setDisplayTime] = useState<number | null>(null);
   const [scramble, setScramble] = useState<string>(() => generateScramble());
-  const [loading, setLoading] = useState(true);
   const [lastSolve, setLastSolve] = useState<CubeSolve | null>(null);
   const [visibleSolves, setVisibleSolves] = useState(10);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const SOLVES_PAGE_SIZE = 10;
 
-  // Fetch solves on mount
+  // Save solves to localStorage whenever they change
   useEffect(() => {
-    fetchSolves();
-  }, []);
+    localStorage.setItem(CUBING_SOLVES_KEY, JSON.stringify(solves));
+  }, [solves]);
 
-  const fetchSolves = async () => {
-    try {
-      const res = await fetch(`${CUBING_URL}/solves`);
-      if (res.ok) {
-        const data = await res.json();
-        setSolves(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch solves:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveSolve = async (timeMs: number, currentScramble: string) => {
-    // Set optimistic lastSolve immediately so buttons appear without delay
-    const tempId = `temp-${Date.now()}`;
-    const optimisticSolve: CubeSolve = {
-      id: tempId,
+  const saveSolve = (timeMs: number, currentScramble: string) => {
+    const newSolve: CubeSolve = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timeMs,
       scramble: currentScramble,
       dnf: false,
       plusTwo: false,
       createdAt: new Date().toISOString()
     };
-    setLastSolve(optimisticSolve);
-    setSolves(prev => [optimisticSolve, ...prev]);
+    setLastSolve(newSolve);
+    setSolves(prev => [newSolve, ...prev]);
+  };
 
-    try {
-      const res = await fetch(`${CUBING_URL}/solves`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timeMs, scramble: currentScramble })
-      });
-      if (res.ok) {
-        const solve = await res.json();
-        // Replace optimistic solve with real one
-        setSolves(prev => prev.map(s => s.id === tempId ? solve : s));
-        setLastSolve(prev => prev?.id === tempId ? solve : prev);
-      }
-    } catch (err) {
-      console.error('Failed to save solve:', err);
-      // Remove optimistic solve on error
-      setSolves(prev => prev.filter(s => s.id !== tempId));
+  const updateSolve = (id: string, updates: { dnf?: boolean; plusTwo?: boolean }) => {
+    setSolves(prev => prev.map(s =>
+      s.id === id ? { ...s, ...updates } : s
+    ));
+    if (lastSolve?.id === id) {
+      setLastSolve(prev => prev ? { ...prev, ...updates } : null);
+    }
+  };
+
+  const deleteSolve = (id: string) => {
+    setSolves(prev => prev.filter(s => s.id !== id));
+    if (lastSolve?.id === id) {
       setLastSolve(null);
     }
   };
 
-  const updateSolve = async (id: string, updates: { dnf?: boolean; plusTwo?: boolean }) => {
-    try {
-      const res = await fetch(`${CUBING_URL}/solves/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      if (res.ok) {
-        setSolves(prev => prev.map(s =>
-          s.id === id ? { ...s, ...updates } : s
-        ));
-        if (lastSolve?.id === id) {
-          setLastSolve(prev => prev ? { ...prev, ...updates } : null);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to update solve:', err);
-    }
-  };
-
-  const deleteSolve = async (id: string) => {
-    try {
-      const res = await fetch(`${CUBING_URL}/solves/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setSolves(prev => prev.filter(s => s.id !== id));
-        if (lastSolve?.id === id) {
-          setLastSolve(null);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to delete solve:', err);
-    }
-  };
-
-  const deleteAllSolves = async () => {
+  const deleteAllSolves = () => {
     if (!window.confirm('Delete all solves? This cannot be undone.')) return;
-    try {
-      const res = await fetch(`${CUBING_URL}/solves`, { method: 'DELETE' });
-      if (res.ok) {
-        setSolves([]);
-        setLastSolve(null);
-      }
-    } catch (err) {
-      console.error('Failed to delete all solves:', err);
-    }
+    setSolves([]);
+    setLastSolve(null);
   };
 
   // Keyboard handlers
@@ -1129,18 +1072,6 @@ function Cubing() {
     if (timerState === 'running') return 'timer-display timer-running';
     return 'timer-display';
   };
-
-  if (loading) {
-    return (
-      <div className="cubing-page">
-        <Link to="/" className="back-link">&larr; Home</Link>
-        <h2>Cubing Timer</h2>
-        <div className="cubing-loading">
-          <div className="cubing-spinner"></div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="cubing-page">
