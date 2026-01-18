@@ -22,6 +22,7 @@ else
 builder.Services.AddSingleton<IBlogPostStore>(new BlogPostStore(connectionString));
 builder.Services.AddSingleton<IUserStore>(new UserStore(connectionString));
 builder.Services.AddSingleton<IStravaStore>(new StravaStore(connectionString));
+builder.Services.AddSingleton<ICubingStore>(new CubingStore(connectionString));
 builder.Services.AddSingleton<IBlogPostService, BlogPostService>();
 
 // Register Strava service with credentials from environment
@@ -158,6 +159,19 @@ using (var conn = new Npgsql.NpgsqlConnection(connectionString))
         CREATE INDEX IF NOT EXISTS idx_strava_best_efforts_name ON strava_best_efforts(name)");
     await ExecuteSql(conn, @"
         CREATE INDEX IF NOT EXISTS idx_strava_best_efforts_activity ON strava_best_efforts(activity_id)");
+
+    // Migration 009: Cubing timer
+    await ExecuteSql(conn, @"
+        CREATE TABLE IF NOT EXISTS cube_solves (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            time_ms INT NOT NULL,
+            scramble TEXT NOT NULL,
+            dnf BOOLEAN DEFAULT FALSE,
+            plus_two BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )");
+    await ExecuteSql(conn, @"
+        CREATE INDEX IF NOT EXISTS idx_cube_solves_created_at ON cube_solves(created_at DESC)");
 }
 
 async Task ExecuteSql(Npgsql.NpgsqlConnection conn, string sql)

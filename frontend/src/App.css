@@ -1304,3 +1304,300 @@ a:hover {
     padding-bottom: calc(30px + env(safe-area-inset-bottom));
   }
 }
+
+/* Cubing Timer */
+.cubing-page {
+  max-width: 600px;
+}
+
+.cubing-page h2 {
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+.scramble-display {
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  font-size: 18px;
+  text-align: center;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  word-break: break-word;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.timer-area {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  user-select: none;
+  cursor: pointer;
+  margin-bottom: 24px;
+}
+
+.timer-display {
+  font-size: 72px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  color: #1a1a1a;
+  position: relative;
+}
+
+.timer-ready {
+  color: #e53935;
+}
+
+.timer-running {
+  color: #888;
+}
+
+.plus-two-indicator {
+  font-size: 24px;
+  color: #f59e0b;
+  margin-left: 8px;
+  vertical-align: super;
+}
+
+.timer-hint {
+  text-align: center;
+  color: #888;
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.solve-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+
+.penalty-btn {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.penalty-btn:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.penalty-btn.active {
+  background: #e53935;
+  color: white;
+  border-color: #e53935;
+}
+
+.penalty-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.delete-solve-btn {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.delete-solve-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.next-solve-btn {
+  padding: 10px 20px;
+  background: #1a1a1a;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.next-solve-btn:hover {
+  background: #333;
+}
+
+/* Cubing Stats Grid */
+.cubing-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.cubing-stat-card {
+  background: #f9f9f9;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.cubing-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+}
+
+.cubing-stat-label {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Solves Section */
+.solves-section {
+  margin-top: 32px;
+}
+
+.solves-section h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #1a1a1a;
+}
+
+.solves-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.solve-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.solve-number {
+  color: #888;
+  min-width: 32px;
+}
+
+.solve-time {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  min-width: 70px;
+}
+
+.solve-time.dnf {
+  color: #e53935;
+}
+
+.plus-two-badge {
+  font-size: 10px;
+  color: #f59e0b;
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+.solve-scramble {
+  flex: 1;
+  color: #888;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.solve-delete-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #ccc;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.solve-delete-btn:hover {
+  color: #e53935;
+}
+
+.clear-all-btn {
+  width: 100%;
+  padding: 14px 24px;
+  margin-top: 16px;
+  background: transparent;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #dc2626;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clear-all-btn:hover {
+  background: #fee2e2;
+}
+
+/* Feature card for cubing */
+.feature-card-cubing {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+/* Mobile responsive for cubing */
+@media (max-width: 600px) {
+  .timer-display {
+    font-size: 48px;
+  }
+
+  .scramble-display {
+    font-size: 16px;
+  }
+
+  .cubing-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cubing-stat-value {
+    font-size: 18px;
+  }
+
+  .solve-actions {
+    gap: 8px;
+  }
+
+  .penalty-btn,
+  .delete-solve-btn,
+  .next-solve-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .solve-scramble {
+    display: none;
+  }
+}

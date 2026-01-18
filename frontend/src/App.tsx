@@ -17,6 +17,7 @@ const AUTH_URL = `${API_BASE}/api/auth`;
 const IMAGE_URL = `${API_BASE}/api/images`;
 const MOVIES_URL = `${API_BASE}/api/movies`;
 const STRAVA_URL = `${API_BASE}/api/strava`;
+const CUBING_URL = `${API_BASE}/api/cubing`;
 
 // Token management
 const TOKEN_KEY = 'rb_auth_token';
@@ -188,6 +189,15 @@ interface StravaStats {
   totalElevationGain: number;
   averagePaceMinPerKm: number;
   lastRunDate?: string;
+}
+
+interface CubeSolve {
+  id: string;
+  timeMs: number;
+  scramble: string;
+  dnf: boolean;
+  plusTwo: boolean;
+  createdAt: string;
 }
 
 const LIKED_MOVIES_KEY = 'rb_liked_movies';
@@ -826,6 +836,403 @@ function StravaCallback() {
   );
 }
 
+// Cubing Timer Component
+function generateScramble(): string {
+  const faces = ['R', 'L', 'U', 'D', 'F', 'B'];
+  const modifiers = ['', "'", '2'];
+  const parallel: Record<string, string> = { R: 'L', L: 'R', U: 'D', D: 'U', F: 'B', B: 'F' };
+
+  const moves: string[] = [];
+  let lastFace = '';
+  let secondLastFace = '';
+
+  for (let i = 0; i < 20; i++) {
+    let face: string;
+    do {
+      face = faces[Math.floor(Math.random() * 6)];
+    } while (face === lastFace || (face === parallel[lastFace] && secondLastFace === parallel[lastFace]));
+
+    const modifier = modifiers[Math.floor(Math.random() * 3)];
+    moves.push(face + modifier);
+    secondLastFace = lastFace;
+    lastFace = face;
+  }
+
+  return moves.join(' ');
+}
+
+function formatTime(ms: number, plusTwo: boolean = false): string {
+  const adjusted = plusTwo ? ms + 2000 : ms;
+  const totalSeconds = adjusted / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes > 0) {
+    return `${minutes}:${seconds.toFixed(2).padStart(5, '0')}`;
+  }
+  return seconds.toFixed(2);
+}
+
+function calculateAverage(solves: CubeSolve[], count: number): number | null {
+  const validSolves = solves.filter(s => !s.dnf);
+  if (validSolves.length < count) return null;
+
+  const subset = solves.slice(0, count);
+  const dnfCount = subset.filter(s => s.dnf).length;
+
+  // If more than one DNF in the subset, the average is DNF
+  if (dnfCount > 1) return null;
+
+  const times = subset.map(s => {
+    if (s.dnf) return Infinity;
+    return s.plusTwo ? s.timeMs + 2000 : s.timeMs;
+  });
+
+  const sorted = [...times].sort((a, b) => a - b);
+  // Remove best and worst
+  const trimmed = sorted.slice(1, -1);
+
+  if (trimmed.some(t => t === Infinity)) return null;
+
+  return trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
+}
+
+function Cubing() {
+  const [solves, setSolves] = useState<CubeSolve[]>([]);
+  const [timerState, setTimerState] = useState<'idle' | 'ready' | 'running' | 'stopped'>('idle');
+  const [startTime, setStartTime] = useState<number>(0);
+  const [displayTime, setDisplayTime] = useState<number | null>(null);
+  const [scramble, setScramble] = useState<string>(() => generateScramble());
+  const [loading, setLoading] = useState(true);
+  const [lastSolve, setLastSolve] = useState<CubeSolve | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch solves on mount
+  useEffect(() => {
+    fetchSolves();
+  }, []);
+
+  const fetchSolves = async () => {
+    try {
+      const res = await fetch(`${CUBING_URL}/solves`);
+      if (res.ok) {
+        const data = await res.json();
+        setSolves(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch solves:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSolve = async (timeMs: number) => {
+    try {
+      const res = await fetch(`${CUBING_URL}/solves`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeMs, scramble })
+      });
+      if (res.ok) {
+        const solve = await res.json();
+        setSolves(prev => [solve, ...prev]);
+        setLastSolve(solve);
+      }
+    } catch (err) {
+      console.error('Failed to save solve:', err);
+    }
+  };
+
+  const updateSolve = async (id: string, updates: { dnf?: boolean; plusTwo?: boolean }) => {
+    try {
+      const res = await fetch(`${CUBING_URL}/solves/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (res.ok) {
+        setSolves(prev => prev.map(s =>
+          s.id === id ? { ...s, ...updates } : s
+        ));
+        if (lastSolve?.id === id) {
+          setLastSolve(prev => prev ? { ...prev, ...updates } : null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to update solve:', err);
+    }
+  };
+
+  const deleteSolve = async (id: string) => {
+    try {
+      const res = await fetch(`${CUBING_URL}/solves/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSolves(prev => prev.filter(s => s.id !== id));
+        if (lastSolve?.id === id) {
+          setLastSolve(null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete solve:', err);
+    }
+  };
+
+  const deleteAllSolves = async () => {
+    if (!window.confirm('Delete all solves? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`${CUBING_URL}/solves`, { method: 'DELETE' });
+      if (res.ok) {
+        setSolves([]);
+        setLastSolve(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete all solves:', err);
+    }
+  };
+
+  // Keyboard handlers
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault();
+        if (timerState === 'idle') {
+          setTimerState('ready');
+        } else if (timerState === 'running') {
+          const elapsed = Date.now() - startTime;
+          setDisplayTime(elapsed);
+          setTimerState('stopped');
+          saveSolve(elapsed);
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (timerState === 'ready') {
+          setStartTime(Date.now());
+          setDisplayTime(null);
+          setTimerState('running');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timerState, startTime, scramble]);
+
+  // Running timer display
+  useEffect(() => {
+    if (timerState === 'running') {
+      timerRef.current = setInterval(() => {
+        // We don't update display during running to hide the time
+      }, 10);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [timerState]);
+
+  // Reset for next solve
+  const resetTimer = () => {
+    setTimerState('idle');
+    setDisplayTime(null);
+    setScramble(generateScramble());
+    setLastSolve(null);
+  };
+
+  // Touch handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (timerState === 'idle') {
+      setTimerState('ready');
+    } else if (timerState === 'running') {
+      const elapsed = Date.now() - startTime;
+      setDisplayTime(elapsed);
+      setTimerState('stopped');
+      saveSolve(elapsed);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (timerState === 'ready') {
+      setStartTime(Date.now());
+      setDisplayTime(null);
+      setTimerState('running');
+    }
+  };
+
+  // Calculate stats
+  const validSolves = solves.filter(s => !s.dnf);
+  const bestTime = validSolves.length > 0
+    ? Math.min(...validSolves.map(s => s.plusTwo ? s.timeMs + 2000 : s.timeMs))
+    : null;
+  const ao5 = calculateAverage(solves, 5);
+  const ao12 = calculateAverage(solves, 12);
+  const ao50 = calculateAverage(solves, 50);
+  const ao100 = calculateAverage(solves, 100);
+  const sessionMean = validSolves.length > 0
+    ? validSolves.reduce((sum, s) => sum + (s.plusTwo ? s.timeMs + 2000 : s.timeMs), 0) / validSolves.length
+    : null;
+
+  const getTimerDisplay = () => {
+    if (timerState === 'ready') return 'Ready...';
+    if (timerState === 'running') return 'Solving...';
+    if (timerState === 'stopped' && displayTime !== null) {
+      return formatTime(displayTime, lastSolve?.plusTwo);
+    }
+    if (lastSolve) {
+      if (lastSolve.dnf) return 'DNF';
+      return formatTime(lastSolve.timeMs, lastSolve.plusTwo);
+    }
+    return '0.00';
+  };
+
+  const getTimerClass = () => {
+    if (timerState === 'ready') return 'timer-display timer-ready';
+    if (timerState === 'running') return 'timer-display timer-running';
+    return 'timer-display';
+  };
+
+  if (loading) {
+    return (
+      <div className="cubing-page">
+        <Link to="/" className="back-link">&larr; Home</Link>
+        <h2>Cubing Timer</h2>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cubing-page">
+      <Link to="/" className="back-link">&larr; Home</Link>
+
+      <h2>Cubing Timer</h2>
+
+      <div className="scramble-display">{scramble}</div>
+
+      <div
+        className="timer-area"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className={getTimerClass()}>
+          {lastSolve?.dnf ? 'DNF' : getTimerDisplay()}
+          {lastSolve?.plusTwo && !lastSolve.dnf && <span className="plus-two-indicator">+2</span>}
+        </div>
+      </div>
+
+      {timerState === 'stopped' && lastSolve && (
+        <div className="solve-actions">
+          <button
+            className={`penalty-btn ${lastSolve.dnf ? 'active' : ''}`}
+            onClick={() => updateSolve(lastSolve.id, { dnf: !lastSolve.dnf, plusTwo: false })}
+          >
+            DNF
+          </button>
+          <button
+            className={`penalty-btn ${lastSolve.plusTwo ? 'active' : ''}`}
+            onClick={() => updateSolve(lastSolve.id, { plusTwo: !lastSolve.plusTwo, dnf: false })}
+            disabled={lastSolve.dnf}
+          >
+            +2
+          </button>
+          <button
+            className="delete-solve-btn"
+            onClick={() => { deleteSolve(lastSolve.id); resetTimer(); }}
+          >
+            Delete
+          </button>
+          <button className="next-solve-btn" onClick={resetTimer}>
+            Next Solve
+          </button>
+        </div>
+      )}
+
+      {timerState === 'idle' && solves.length > 0 && (
+        <p className="timer-hint">Hold spacebar (or tap on mobile) to start</p>
+      )}
+
+      {solves.length > 0 && (
+        <>
+          <div className="cubing-stats-grid">
+            <div className="cubing-stat-card">
+              <div className="cubing-stat-value">{bestTime ? formatTime(bestTime) : '-'}</div>
+              <div className="cubing-stat-label">Best</div>
+            </div>
+            <div className="cubing-stat-card">
+              <div className="cubing-stat-value">{ao5 ? formatTime(ao5) : '-'}</div>
+              <div className="cubing-stat-label">Ao5</div>
+            </div>
+            <div className="cubing-stat-card">
+              <div className="cubing-stat-value">{ao12 ? formatTime(ao12) : '-'}</div>
+              <div className="cubing-stat-label">Ao12</div>
+            </div>
+            <div className="cubing-stat-card">
+              <div className="cubing-stat-value">{ao50 ? formatTime(ao50) : '-'}</div>
+              <div className="cubing-stat-label">Ao50</div>
+            </div>
+            <div className="cubing-stat-card">
+              <div className="cubing-stat-value">{ao100 ? formatTime(ao100) : '-'}</div>
+              <div className="cubing-stat-label">Ao100</div>
+            </div>
+            <div className="cubing-stat-card">
+              <div className="cubing-stat-value">{sessionMean ? formatTime(sessionMean) : '-'}</div>
+              <div className="cubing-stat-label">Mean</div>
+            </div>
+          </div>
+
+          <div className="solves-section">
+            <h3>Recent Solves ({solves.length})</h3>
+            <div className="solves-list">
+              {solves.slice(0, 50).map((solve, index) => (
+                <div key={solve.id} className="solve-item">
+                  <span className="solve-number">{solves.length - index}.</span>
+                  <span className={`solve-time ${solve.dnf ? 'dnf' : ''}`}>
+                    {solve.dnf ? 'DNF' : formatTime(solve.timeMs, solve.plusTwo)}
+                    {solve.plusTwo && !solve.dnf && <span className="plus-two-badge">+2</span>}
+                  </span>
+                  <span className="solve-scramble" title={solve.scramble}>
+                    {solve.scramble.substring(0, 20)}...
+                  </span>
+                  <button
+                    className="solve-delete-btn"
+                    onClick={() => deleteSolve(solve.id)}
+                    title="Delete solve"
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button className="clear-all-btn" onClick={deleteAllSolves}>
+              Clear All Solves
+            </button>
+          </div>
+        </>
+      )}
+
+      {solves.length === 0 && timerState === 'idle' && (
+        <p className="empty-state">Hold spacebar (or tap on mobile) to start your first solve!</p>
+      )}
+    </div>
+  );
+}
+
 function Layout({ children, isAdmin, onLogout }: { children: React.ReactNode; isAdmin: boolean; onLogout: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -857,6 +1264,7 @@ function Layout({ children, isAdmin, onLogout }: { children: React.ReactNode; is
         <ul>
           <li><Link to="/posts" onClick={closeMenu}>Blog Posts</Link></li>
           <li><Link to="/runs" onClick={closeMenu}>Running</Link></li>
+          <li><Link to="/cubing" onClick={closeMenu}>Cubing Timer</Link></li>
           <li><Link to="/recommend" onClick={closeMenu}>Movie Recommendations</Link></li>
         </ul>
         {isAdmin && (
@@ -986,6 +1394,21 @@ function Home({ isAdmin }: { isAdmin: boolean }) {
         <div className="feature-card-content">
           <h3>Running</h3>
           <p>View my running activities and stats from Strava</p>
+        </div>
+        <svg className="feature-card-arrow" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+        </svg>
+      </Link>
+
+      <Link to="/cubing" className="feature-card feature-card-cubing">
+        <div className="feature-card-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H9V5h6v2z"/>
+          </svg>
+        </div>
+        <div className="feature-card-content">
+          <h3>Cubing Timer</h3>
+          <p>Time your Rubik's cube solves with scrambles and stats</p>
         </div>
         <svg className="feature-card-arrow" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
@@ -1395,6 +1818,7 @@ function App() {
           <Route path="/recommend" element={<Recommend />} />
           <Route path="/runs" element={<Runs isAdmin={isAdmin} />} />
           <Route path="/strava/callback" element={<StravaCallback />} />
+          <Route path="/cubing" element={<Cubing />} />
         </Routes>
       </Layout>
     </BrowserRouter>
