@@ -352,7 +352,7 @@ function Recommend() {
 
   return (
     <div className="recommend-page">
-      <Link to="/" className="back-link">&larr; Back to posts</Link>
+      <Link to="/" className="back-link">&larr; Home</Link>
 
       <h2>Movie Recommendations</h2>
       <p className="recommend-intro">Add movies you like, and we'll recommend similar ones!</p>
@@ -519,6 +519,8 @@ function Runs({ isAdmin }: { isAdmin: boolean }) {
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(5);
+  const PAGE_SIZE = 5;
 
   const fetchData = async () => {
     setLoading(true);
@@ -600,7 +602,7 @@ function Runs({ isAdmin }: { isAdmin: boolean }) {
   if (loading) {
     return (
       <div className="runs-page">
-        <Link to="/" className="back-link">&larr; Back to posts</Link>
+        <Link to="/" className="back-link">&larr; Home</Link>
         <h2>Running</h2>
         <p>Loading...</p>
       </div>
@@ -609,7 +611,7 @@ function Runs({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="runs-page">
-      <Link to="/" className="back-link">&larr; Back to posts</Link>
+      <Link to="/" className="back-link">&larr; Home</Link>
 
       <h2>Running</h2>
 
@@ -658,41 +660,51 @@ function Runs({ isAdmin }: { isAdmin: boolean }) {
           {connected ? 'No activities yet. Click Sync to fetch your runs.' : 'Connect Strava to see your running activities.'}
         </p>
       ) : (
-        <div className="activity-list">
-          {activities.map(activity => {
-            const paceMinPerKm = (activity.movingTimeSeconds / 60) / (activity.distanceMeters / 1000);
-            return (
-              <div key={activity.id} className="activity-item">
-                <div className="activity-header">
-                  <span className="activity-name">{activity.name}</span>
-                  <span className="activity-date">
-                    {new Date(activity.startDateLocal).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </span>
-                </div>
-                <div className="activity-stats">
-                  <span className="activity-stat">
-                    <strong>{formatDistance(activity.distanceMeters)}</strong> km
-                  </span>
-                  <span className="activity-stat">
-                    <strong>{formatPace(paceMinPerKm)}</strong> /km
-                  </span>
-                  <span className="activity-stat">
-                    <strong>{formatDuration(activity.movingTimeSeconds)}</strong>
-                  </span>
-                  {activity.totalElevationGain && activity.totalElevationGain > 0 && (
-                    <span className="activity-stat">
-                      <strong>{Math.round(activity.totalElevationGain)}</strong>m elev
+        <>
+          <div className="activity-list">
+            {activities.slice(0, visibleCount).map(activity => {
+              const paceMinPerKm = (activity.movingTimeSeconds / 60) / (activity.distanceMeters / 1000);
+              return (
+                <div key={activity.id} className="activity-item">
+                  <div className="activity-header">
+                    <span className="activity-name">{activity.name}</span>
+                    <span className="activity-date">
+                      {new Date(activity.startDateLocal).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
                     </span>
-                  )}
+                  </div>
+                  <div className="activity-stats">
+                    <span className="activity-stat">
+                      <strong>{formatDistance(activity.distanceMeters)}</strong> km
+                    </span>
+                    <span className="activity-stat">
+                      <strong>{formatPace(paceMinPerKm)}</strong> /km
+                    </span>
+                    <span className="activity-stat">
+                      <strong>{formatDuration(activity.movingTimeSeconds)}</strong>
+                    </span>
+                    {activity.totalElevationGain && activity.totalElevationGain > 0 && (
+                      <span className="activity-stat">
+                        <strong>{Math.round(activity.totalElevationGain)}</strong>m elev
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+          {visibleCount < activities.length && (
+            <button
+              className="load-more-btn"
+              onClick={() => setVisibleCount(visibleCount + PAGE_SIZE)}
+            >
+              Load More ({activities.length - visibleCount} remaining)
+            </button>
+          )}
+        </>
       )}
 
       <div className="strava-attribution">
@@ -770,7 +782,7 @@ function StravaCallback() {
   );
 }
 
-function Layout({ children, posts, isAdmin, onLogout }: { children: React.ReactNode; posts: BlogPost[]; isAdmin: boolean; onLogout: () => void }) {
+function Layout({ children, isAdmin, onLogout }: { children: React.ReactNode; isAdmin: boolean; onLogout: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const closeMenu = () => setMenuOpen(false);
@@ -797,13 +809,11 @@ function Layout({ children, posts, isAdmin, onLogout }: { children: React.ReactN
             </svg>
           </Link>
         )}
-        <h2>Posts</h2>
+        <h2>Navigate</h2>
         <ul>
-          {posts.map(post => (
-            <li key={post.id}>
-              <Link to={`/post/${post.id}`} onClick={closeMenu}>{post.title}</Link>
-            </li>
-          ))}
+          <li><Link to="/posts" onClick={closeMenu}>Blog Posts</Link></li>
+          <li><Link to="/runs" onClick={closeMenu}>Running</Link></li>
+          <li><Link to="/recommend" onClick={closeMenu}>Movie Recommendations</Link></li>
         </ul>
         {isAdmin && (
           <div className="user-section">
@@ -900,40 +910,18 @@ function PostSkeleton() {
   );
 }
 
-function Home({ posts, loading }: { posts: BlogPost[]; loading: boolean }) {
-  if (loading) {
-    return (
-      <>
-        <PostSkeleton />
-        <PostSkeleton />
-        <PostSkeleton />
-      </>
-    );
-  }
-
-  if (posts.length === 0) {
-    return <p className="empty-state">No posts yet.</p>;
-  }
-
+function Home() {
   return (
-    <>
-      {posts.map(post => (
-        <article key={post.id} className="post">
-          <h2><Link to={`/post/${post.id}`}>{post.title}</Link></h2>
-          <PostMeta createdAt={post.createdAt} location={post.location} />
-          <div className="content">{renderContent(post.content.substring(0, 300))}...</div>
-        </article>
-      ))}
-
-      <Link to="/recommend" className="feature-card">
+    <div className="landing-page">
+      <Link to="/posts" className="feature-card feature-card-posts">
         <div className="feature-card-icon">
           <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
-            <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
           </svg>
         </div>
         <div className="feature-card-content">
-          <h3>Movie Recommendations</h3>
-          <p>Get personalized movie suggestions based on your favorites</p>
+          <h3>Blog Posts</h3>
+          <p>Read my thoughts and updates</p>
         </div>
         <svg className="feature-card-arrow" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
@@ -954,6 +942,56 @@ function Home({ posts, loading }: { posts: BlogPost[]; loading: boolean }) {
           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
         </svg>
       </Link>
+
+      <Link to="/recommend" className="feature-card">
+        <div className="feature-card-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+            <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
+          </svg>
+        </div>
+        <div className="feature-card-content">
+          <h3>Movie Recommendations</h3>
+          <p>Get personalized movie suggestions based on your favorites</p>
+        </div>
+        <svg className="feature-card-arrow" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+        </svg>
+      </Link>
+    </div>
+  );
+}
+
+function Posts({ posts, loading }: { posts: BlogPost[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <>
+        <Link to="/" className="back-link">&larr; Home</Link>
+        <PostSkeleton />
+        <PostSkeleton />
+        <PostSkeleton />
+      </>
+    );
+  }
+
+  if (posts.length === 0) {
+    return (
+      <>
+        <Link to="/" className="back-link">&larr; Home</Link>
+        <p className="empty-state">No posts yet.</p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Link to="/" className="back-link">&larr; Home</Link>
+      {posts.map(post => (
+        <article key={post.id} className="post">
+          <h2><Link to={`/post/${post.id}`}>{post.title}</Link></h2>
+          <PostMeta createdAt={post.createdAt} location={post.location} />
+          <div className="content">{renderContent(post.content.substring(0, 300))}...</div>
+        </article>
+      ))}
     </>
   );
 }
@@ -981,7 +1019,7 @@ function Post({ posts, isAdmin, onPostDeleted }: { posts: BlogPost[]; isAdmin: b
 
   return (
     <>
-      <Link to="/" className="back-link">&larr; Back to all posts</Link>
+      <Link to="/posts" className="back-link">&larr; Back to posts</Link>
       <article className="post">
         <h2>
           {post.title}
@@ -1063,7 +1101,7 @@ function NewPost({ onPostCreated }: { onPostCreated: () => void }) {
 
   return (
     <>
-      <Link to="/" className="back-link">&larr; Back to all posts</Link>
+      <Link to="/posts" className="back-link">&larr; Back to posts</Link>
       <article className="post">
         <h2>
           <input
@@ -1297,9 +1335,10 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Layout posts={posts} isAdmin={isAdmin} onLogout={handleLogout}>
+      <Layout isAdmin={isAdmin} onLogout={handleLogout}>
         <Routes>
-          <Route path="/" element={<Home posts={posts} loading={postsLoading} />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/posts" element={<Posts posts={posts} loading={postsLoading} />} />
           <Route path="/post/:id" element={<Post posts={posts} isAdmin={isAdmin} onPostDeleted={fetchPosts} />} />
           <Route path="/edit/:id" element={isAdmin ? <EditPost posts={posts} onPostUpdated={fetchPosts} /> : <LoginForm onLogin={() => { checkAuth(); }} />} />
           <Route path="/new" element={isAdmin ? <NewPost onPostCreated={fetchPosts} /> : <LoginForm onLogin={() => { checkAuth(); }} />} />

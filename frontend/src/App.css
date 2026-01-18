@@ -1136,6 +1136,34 @@ a:hover {
   background: linear-gradient(135deg, #FC4C02 0%, #e04400 100%);
 }
 
+.feature-card-posts {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.landing-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.load-more-btn {
+  width: 100%;
+  padding: 14px 24px;
+  margin-top: 16px;
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.load-more-btn:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
 @media (max-width: 600px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
