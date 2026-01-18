@@ -1472,7 +1472,12 @@ function Posts({ posts, loading, isAdmin, onPostDeleted }: { posts: BlogPost[]; 
 
   return (
     <>
-      <Link to="/" className="back-link">&larr; Home</Link>
+      <div className="posts-header">
+        <Link to="/" className="back-link">&larr; Home</Link>
+        {isAdmin && (
+          <Link to="/new" className="new-post-btn">+ New Post</Link>
+        )}
+      </div>
       {isAdmin && (
         <div className="bulk-actions">
           <label className="select-all-label">

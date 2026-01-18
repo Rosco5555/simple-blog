@@ -285,6 +285,22 @@ a:hover {
   color: #e53935;
 }
 
+/* Posts Header */
+.posts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.posts-header .back-link {
+  margin-bottom: 0;
+}
+
+.posts-header .new-post-btn {
+  margin-bottom: 0;
+}
+
 /* Bulk Actions */
 .bulk-actions {
   display: flex;
