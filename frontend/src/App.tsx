@@ -16,6 +16,7 @@ const API_URL = `${API_BASE}/api/posts`;
 const AUTH_URL = `${API_BASE}/api/auth`;
 const IMAGE_URL = `${API_BASE}/api/images`;
 const MOVIES_URL = `${API_BASE}/api/movies`;
+const STRAVA_URL = `${API_BASE}/api/strava`;
 
 // Token management
 const TOKEN_KEY = 'rb_auth_token';
@@ -156,6 +157,26 @@ interface Director {
   id: number;
   name: string;
   profilePath: string | null;
+}
+
+interface StravaActivity {
+  id: number;
+  name: string;
+  activityType: string;
+  distanceMeters: number;
+  movingTimeSeconds: number;
+  startDateLocal: string;
+  totalElevationGain?: number;
+  averageHeartrate?: number;
+}
+
+interface StravaStats {
+  totalRuns: number;
+  totalDistanceKm: number;
+  totalTimeMinutes: number;
+  totalElevationGain: number;
+  averagePaceMinPerKm: number;
+  lastRunDate?: string;
 }
 
 const LIKED_MOVIES_KEY = 'rb_liked_movies';
@@ -471,6 +492,284 @@ function Recommend() {
   );
 }
 
+function formatPace(minPerKm: number): string {
+  const mins = Math.floor(minPerKm);
+  const secs = Math.round((minPerKm - mins) * 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${mins}m`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatDistance(meters: number): string {
+  const km = meters / 1000;
+  return km >= 10 ? km.toFixed(1) : km.toFixed(2);
+}
+
+function Runs({ isAdmin }: { isAdmin: boolean }) {
+  const [activities, setActivities] = useState<StravaActivity[]>([]);
+  const [stats, setStats] = useState<StravaStats | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [statusRes, activitiesRes, statsRes] = await Promise.all([
+        fetch(`${STRAVA_URL}/status`),
+        fetch(`${STRAVA_URL}/activities`),
+        fetch(`${STRAVA_URL}/stats`)
+      ]);
+
+      if (statusRes.ok) {
+        const { connected: isConnected } = await statusRes.json();
+        setConnected(isConnected);
+      }
+      if (activitiesRes.ok) {
+        setActivities(await activitiesRes.json());
+      }
+      if (statsRes.ok) {
+        setStats(await statsRes.json());
+      }
+    } catch (err) {
+      console.error('Failed to fetch Strava data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleConnect = async () => {
+    const redirectUri = `${window.location.origin}/strava/callback`;
+    try {
+      const res = await fetch(`${STRAVA_URL}/auth/url?redirectUri=${encodeURIComponent(redirectUri)}`, {
+        headers: authHeaders()
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        window.location.href = url;
+      }
+    } catch (err) {
+      console.error('Failed to get auth URL:', err);
+    }
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch(`${STRAVA_URL}/sync`, {
+        method: 'POST',
+        headers: authHeaders()
+      });
+      if (res.ok) {
+        await fetchData();
+      }
+    } catch (err) {
+      console.error('Sync failed:', err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!window.confirm('Disconnect Strava? This will remove all synced activities.')) return;
+    try {
+      await fetch(`${STRAVA_URL}/disconnect`, {
+        method: 'DELETE',
+        headers: authHeaders()
+      });
+      setConnected(false);
+      setActivities([]);
+      setStats(null);
+    } catch (err) {
+      console.error('Disconnect failed:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="runs-page">
+        <Link to="/" className="back-link">&larr; Back to posts</Link>
+        <h2>Running</h2>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="runs-page">
+      <Link to="/" className="back-link">&larr; Back to posts</Link>
+
+      <h2>Running</h2>
+
+      {isAdmin && (
+        <div className="admin-actions">
+          {connected ? (
+            <>
+              <button onClick={handleSync} disabled={syncing} className="sync-btn">
+                {syncing ? 'Syncing...' : 'Sync Activities'}
+              </button>
+              <button onClick={handleDisconnect} className="disconnect-btn">
+                Disconnect
+              </button>
+            </>
+          ) : (
+            <button onClick={handleConnect} className="connect-btn">
+              Connect Strava
+            </button>
+          )}
+        </div>
+      )}
+
+      {stats && stats.totalRuns > 0 && (
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-value">{stats.totalRuns}</div>
+            <div className="stat-label">Runs</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">{stats.totalDistanceKm.toFixed(1)}</div>
+            <div className="stat-label">Total km</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">{formatPace(stats.averagePaceMinPerKm)}</div>
+            <div className="stat-label">Avg pace /km</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">{Math.round(stats.totalElevationGain)}</div>
+            <div className="stat-label">Elevation (m)</div>
+          </div>
+        </div>
+      )}
+
+      {activities.length === 0 ? (
+        <p className="empty-state">
+          {connected ? 'No activities yet. Click Sync to fetch your runs.' : 'Connect Strava to see your running activities.'}
+        </p>
+      ) : (
+        <div className="activity-list">
+          {activities.map(activity => {
+            const paceMinPerKm = (activity.movingTimeSeconds / 60) / (activity.distanceMeters / 1000);
+            return (
+              <div key={activity.id} className="activity-item">
+                <div className="activity-header">
+                  <span className="activity-name">{activity.name}</span>
+                  <span className="activity-date">
+                    {new Date(activity.startDateLocal).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </span>
+                </div>
+                <div className="activity-stats">
+                  <span className="activity-stat">
+                    <strong>{formatDistance(activity.distanceMeters)}</strong> km
+                  </span>
+                  <span className="activity-stat">
+                    <strong>{formatPace(paceMinPerKm)}</strong> /km
+                  </span>
+                  <span className="activity-stat">
+                    <strong>{formatDuration(activity.movingTimeSeconds)}</strong>
+                  </span>
+                  {activity.totalElevationGain && activity.totalElevationGain > 0 && (
+                    <span className="activity-stat">
+                      <strong>{Math.round(activity.totalElevationGain)}</strong>m elev
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="strava-attribution">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="#FC4C02">
+          <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+        </svg>
+        <p>Powered by Strava</p>
+      </div>
+    </div>
+  );
+}
+
+function StravaCallback() {
+  const navigate = useNavigate();
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const errorParam = params.get('error');
+
+    if (errorParam) {
+      setStatus('error');
+      setError('Authorization was denied');
+      return;
+    }
+
+    if (!code) {
+      setStatus('error');
+      setError('No authorization code received');
+      return;
+    }
+
+    const exchangeCode = async () => {
+      try {
+        const res = await fetch(`${STRAVA_URL}/auth/callback`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders()
+          },
+          body: JSON.stringify({ code })
+        });
+
+        if (res.ok) {
+          setStatus('success');
+          setTimeout(() => navigate('/runs'), 1500);
+        } else {
+          const data = await res.json();
+          setStatus('error');
+          setError(data.error || 'Failed to connect');
+        }
+      } catch (err) {
+        setStatus('error');
+        setError('Connection failed');
+      }
+    };
+
+    exchangeCode();
+  }, [navigate]);
+
+  return (
+    <div className="strava-callback">
+      <Link to="/" className="back-link">&larr; Back to posts</Link>
+      {status === 'loading' && <p>Connecting to Strava...</p>}
+      {status === 'success' && <p>Connected! Redirecting to runs...</p>}
+      {status === 'error' && (
+        <>
+          <p className="error">Error: {error}</p>
+          <Link to="/runs">Go to runs</Link>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Layout({ children, posts, isAdmin, onLogout }: { children: React.ReactNode; posts: BlogPost[]; isAdmin: boolean; onLogout: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -635,6 +934,21 @@ function Home({ posts, loading }: { posts: BlogPost[]; loading: boolean }) {
         <div className="feature-card-content">
           <h3>Movie Recommendations</h3>
           <p>Get personalized movie suggestions based on your favorites</p>
+        </div>
+        <svg className="feature-card-arrow" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+        </svg>
+      </Link>
+
+      <Link to="/runs" className="feature-card feature-card-strava">
+        <div className="feature-card-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+          </svg>
+        </div>
+        <div className="feature-card-content">
+          <h3>Running</h3>
+          <p>View my running activities and stats from Strava</p>
         </div>
         <svg className="feature-card-arrow" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
@@ -991,6 +1305,8 @@ function App() {
           <Route path="/new" element={isAdmin ? <NewPost onPostCreated={fetchPosts} /> : <LoginForm onLogin={() => { checkAuth(); }} />} />
           <Route path="/login" element={<LoginForm onLogin={() => { checkAuth(); }} />} />
           <Route path="/recommend" element={<Recommend />} />
+          <Route path="/runs" element={<Runs isAdmin={isAdmin} />} />
+          <Route path="/strava/callback" element={<StravaCallback />} />
         </Routes>
       </Layout>
     </BrowserRouter>
