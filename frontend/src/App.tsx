@@ -928,20 +928,37 @@ function Cubing() {
     }
   };
 
-  const saveSolve = async (timeMs: number) => {
+  const saveSolve = async (timeMs: number, currentScramble: string) => {
+    // Set optimistic lastSolve immediately so buttons appear without delay
+    const tempId = `temp-${Date.now()}`;
+    const optimisticSolve: CubeSolve = {
+      id: tempId,
+      timeMs,
+      scramble: currentScramble,
+      dnf: false,
+      plusTwo: false,
+      createdAt: new Date().toISOString()
+    };
+    setLastSolve(optimisticSolve);
+    setSolves(prev => [optimisticSolve, ...prev]);
+
     try {
       const res = await fetch(`${CUBING_URL}/solves`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timeMs, scramble })
+        body: JSON.stringify({ timeMs, scramble: currentScramble })
       });
       if (res.ok) {
         const solve = await res.json();
-        setSolves(prev => [solve, ...prev]);
-        setLastSolve(solve);
+        // Replace optimistic solve with real one
+        setSolves(prev => prev.map(s => s.id === tempId ? solve : s));
+        setLastSolve(prev => prev?.id === tempId ? solve : prev);
       }
     } catch (err) {
       console.error('Failed to save solve:', err);
+      // Remove optimistic solve on error
+      setSolves(prev => prev.filter(s => s.id !== tempId));
+      setLastSolve(null);
     }
   };
 
@@ -1005,7 +1022,7 @@ function Cubing() {
           const elapsed = Date.now() - startTime;
           setDisplayTime(elapsed);
           setTimerState('stopped');
-          saveSolve(elapsed);
+          saveSolve(elapsed, scramble);
         }
       }
     };
@@ -1068,7 +1085,7 @@ function Cubing() {
       const elapsed = Date.now() - startTime;
       setDisplayTime(elapsed);
       setTimerState('stopped');
-      saveSolve(elapsed);
+      saveSolve(elapsed, scramble);
     }
   };
 
