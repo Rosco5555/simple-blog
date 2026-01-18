@@ -1075,10 +1075,13 @@ a:hover {
 }
 
 .activity-header {
+  margin-bottom: 8px;
+}
+
+.activity-title-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 8px;
 }
 
 .activity-name {
@@ -1091,6 +1094,13 @@ a:hover {
   font-size: 13px;
   color: #888;
   flex-shrink: 0;
+}
+
+.activity-location {
+  font-size: 13px;
+  color: #888;
+  display: block;
+  margin-top: 2px;
 }
 
 .activity-stats {
@@ -1107,6 +1117,49 @@ a:hover {
 .activity-stat strong {
   color: #1a1a1a;
   font-weight: 600;
+}
+
+.pbs-section {
+  margin-bottom: 32px;
+}
+
+.pbs-section h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #1a1a1a;
+}
+
+.pbs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.pb-card {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.pb-distance {
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 4px;
+}
+
+.pb-time {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.pb-date {
+  font-size: 11px;
+  color: #a16207;
+  margin-top: 4px;
 }
 
 .strava-attribution {

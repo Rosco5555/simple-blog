@@ -79,7 +79,7 @@ public class StravaStore : IStravaStore
             SELECT id, athlete_id, name, activity_type, distance_meters, moving_time_seconds,
                    elapsed_time_seconds, total_elevation_gain, start_date, start_date_local,
                    average_speed, max_speed, average_heartrate, max_heartrate, summary_polyline,
-                   calories, created_at
+                   calories, location_city, location_state, location_country, created_at
             FROM strava_activities
             ORDER BY start_date DESC", conn);
 
@@ -100,7 +100,7 @@ public class StravaStore : IStravaStore
             SELECT id, athlete_id, name, activity_type, distance_meters, moving_time_seconds,
                    elapsed_time_seconds, total_elevation_gain, start_date, start_date_local,
                    average_speed, max_speed, average_heartrate, max_heartrate, summary_polyline,
-                   calories, created_at
+                   calories, location_city, location_state, location_country, created_at
             FROM strava_activities
             WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("id", id);
@@ -137,12 +137,12 @@ public class StravaStore : IStravaStore
                     id, athlete_id, name, activity_type, distance_meters, moving_time_seconds,
                     elapsed_time_seconds, total_elevation_gain, start_date, start_date_local,
                     average_speed, max_speed, average_heartrate, max_heartrate, summary_polyline,
-                    calories, created_at
+                    calories, location_city, location_state, location_country, created_at
                 ) VALUES (
                     @id, @athlete_id, @name, @activity_type, @distance_meters, @moving_time_seconds,
                     @elapsed_time_seconds, @total_elevation_gain, @start_date, @start_date_local,
                     @average_speed, @max_speed, @average_heartrate, @max_heartrate, @summary_polyline,
-                    @calories, NOW()
+                    @calories, @location_city, @location_state, @location_country, NOW()
                 )
                 ON CONFLICT (id) DO UPDATE SET
                     name = @name,
@@ -156,7 +156,10 @@ public class StravaStore : IStravaStore
                     average_heartrate = @average_heartrate,
                     max_heartrate = @max_heartrate,
                     summary_polyline = @summary_polyline,
-                    calories = @calories", conn);
+                    calories = @calories,
+                    location_city = @location_city,
+                    location_state = @location_state,
+                    location_country = @location_country", conn);
 
             cmd.Parameters.AddWithValue("id", activity.Id);
             cmd.Parameters.AddWithValue("athlete_id", activity.AthleteId);
@@ -174,6 +177,9 @@ public class StravaStore : IStravaStore
             cmd.Parameters.AddWithValue("max_heartrate", (object?)activity.MaxHeartrate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("summary_polyline", (object?)activity.SummaryPolyline ?? DBNull.Value);
             cmd.Parameters.AddWithValue("calories", (object?)activity.Calories ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("location_city", (object?)activity.LocationCity ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("location_state", (object?)activity.LocationState ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("location_country", (object?)activity.LocationCountry ?? DBNull.Value);
 
             await cmd.ExecuteNonQueryAsync();
         }
@@ -185,6 +191,93 @@ public class StravaStore : IStravaStore
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand("DELETE FROM strava_activities", conn);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<IEnumerable<long>> GetActivityIdsWithoutBestEfforts()
+    {
+        var ids = new List<long>();
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        await using var cmd = new NpgsqlCommand(@"
+            SELECT a.id FROM strava_activities a
+            LEFT JOIN strava_best_efforts be ON a.id = be.activity_id
+            WHERE be.id IS NULL", conn);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            ids.Add(reader.GetInt64(0));
+        }
+        return ids;
+    }
+
+    public async Task SaveBestEfforts(IEnumerable<StravaBestEffort> efforts)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        foreach (var effort in efforts)
+        {
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO strava_best_efforts (
+                    id, activity_id, athlete_id, name, distance_meters,
+                    elapsed_time_seconds, moving_time_seconds, start_date, pr_rank, created_at
+                ) VALUES (
+                    @id, @activity_id, @athlete_id, @name, @distance_meters,
+                    @elapsed_time_seconds, @moving_time_seconds, @start_date, @pr_rank, NOW()
+                )
+                ON CONFLICT (id) DO NOTHING", conn);
+
+            cmd.Parameters.AddWithValue("id", effort.Id);
+            cmd.Parameters.AddWithValue("activity_id", effort.ActivityId);
+            cmd.Parameters.AddWithValue("athlete_id", effort.AthleteId);
+            cmd.Parameters.AddWithValue("name", effort.Name);
+            cmd.Parameters.AddWithValue("distance_meters", effort.DistanceMeters);
+            cmd.Parameters.AddWithValue("elapsed_time_seconds", effort.ElapsedTimeSeconds);
+            cmd.Parameters.AddWithValue("moving_time_seconds", effort.MovingTimeSeconds);
+            cmd.Parameters.AddWithValue("start_date", effort.StartDate);
+            cmd.Parameters.AddWithValue("pr_rank", (object?)effort.PrRank ?? DBNull.Value);
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
+
+    public async Task<IEnumerable<PersonalBest>> GetPersonalBests()
+    {
+        var pbs = new List<PersonalBest>();
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        // Get best (minimum) time for each distance
+        await using var cmd = new NpgsqlCommand(@"
+            SELECT DISTINCT ON (name)
+                name, distance_meters, moving_time_seconds, start_date, activity_id
+            FROM strava_best_efforts
+            ORDER BY name, moving_time_seconds ASC", conn);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            pbs.Add(new PersonalBest
+            {
+                Name = reader.GetString(0),
+                DistanceMeters = reader.GetDecimal(1),
+                BestTimeSeconds = reader.GetInt32(2),
+                AchievedDate = reader.GetDateTime(3),
+                ActivityId = reader.GetInt64(4)
+            });
+        }
+        return pbs;
+    }
+
+    public async Task DeleteAllBestEfforts()
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        await using var cmd = new NpgsqlCommand("DELETE FROM strava_best_efforts", conn);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -208,7 +301,10 @@ public class StravaStore : IStravaStore
             MaxHeartrate = reader.IsDBNull(13) ? null : reader.GetInt32(13),
             SummaryPolyline = reader.IsDBNull(14) ? null : reader.GetString(14),
             Calories = reader.IsDBNull(15) ? null : reader.GetInt32(15),
-            CreatedAt = reader.GetDateTime(16)
+            LocationCity = reader.IsDBNull(16) ? null : reader.GetString(16),
+            LocationState = reader.IsDBNull(17) ? null : reader.GetString(17),
+            LocationCountry = reader.IsDBNull(18) ? null : reader.GetString(18),
+            CreatedAt = reader.GetDateTime(19)
         };
     }
 }

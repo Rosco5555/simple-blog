@@ -114,13 +114,68 @@ public class StravaService : IStravaService
             await _store.SaveActivities(activities);
         }
 
+        // Sync best efforts for activities that don't have them yet
+        await SyncBestEfforts(token.AccessToken);
+
         return activities.Count();
+    }
+
+    public async Task<IEnumerable<PersonalBest>> GetPersonalBests()
+    {
+        return await _store.GetPersonalBests();
     }
 
     public async Task Disconnect()
     {
+        await _store.DeleteAllBestEfforts();
         await _store.DeleteToken();
         await _store.DeleteAllActivities();
+    }
+
+    private async Task SyncBestEfforts(string accessToken)
+    {
+        var activityIds = await _store.GetActivityIdsWithoutBestEfforts();
+
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        foreach (var activityId in activityIds)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync($"{StravaApiBase}/activities/{activityId}");
+                if (!response.IsSuccessStatusCode)
+                    continue;
+
+                var json = await response.Content.ReadAsStringAsync();
+                var detailed = JsonSerializer.Deserialize<StravaDetailedActivityResponse>(json);
+
+                if (detailed?.best_efforts == null || detailed.best_efforts.Count == 0)
+                    continue;
+
+                var efforts = detailed.best_efforts.Select(be => new StravaBestEffort
+                {
+                    Id = be.id,
+                    ActivityId = be.activity_id,
+                    AthleteId = be.athlete.id,
+                    Name = be.name,
+                    DistanceMeters = (decimal)be.distance,
+                    ElapsedTimeSeconds = be.elapsed_time,
+                    MovingTimeSeconds = be.moving_time,
+                    StartDate = DateTime.Parse(be.start_date).ToUniversalTime(),
+                    PrRank = be.pr_rank
+                });
+
+                await _store.SaveBestEfforts(efforts);
+
+                // Small delay to avoid rate limiting
+                await Task.Delay(100);
+            }
+            catch
+            {
+                // Skip activities that fail to fetch
+                continue;
+            }
+        }
     }
 
     private async Task<StravaToken?> GetValidToken()
@@ -213,7 +268,10 @@ public class StravaService : IStravaService
                     AverageHeartrate = sa.average_heartrate.HasValue ? (decimal)sa.average_heartrate.Value : null,
                     MaxHeartrate = sa.max_heartrate.HasValue ? (int)sa.max_heartrate.Value : null,
                     SummaryPolyline = sa.map?.summary_polyline,
-                    Calories = sa.calories.HasValue ? (int)sa.calories.Value : null
+                    Calories = sa.calories.HasValue ? (int)sa.calories.Value : null,
+                    LocationCity = sa.location_city,
+                    LocationState = sa.location_state,
+                    LocationCountry = sa.location_country
                 });
             }
 
@@ -265,6 +323,27 @@ public class StravaService : IStravaService
         public double? max_heartrate { get; set; }
         public StravaMap? map { get; set; }
         public double? calories { get; set; }
+        public string? location_city { get; set; }
+        public string? location_state { get; set; }
+        public string? location_country { get; set; }
+    }
+
+    private class StravaDetailedActivityResponse : StravaActivityResponse
+    {
+        public List<StravaBestEffortResponse>? best_efforts { get; set; }
+    }
+
+    private class StravaBestEffortResponse
+    {
+        public long id { get; set; }
+        public long activity_id { get; set; }
+        public StravaAthlete athlete { get; set; } = new();
+        public string name { get; set; } = "";
+        public double distance { get; set; }
+        public int elapsed_time { get; set; }
+        public int moving_time { get; set; }
+        public string start_date { get; set; } = "";
+        public int? pr_rank { get; set; }
     }
 
     private class StravaMap

@@ -11,6 +11,7 @@ public interface IStravaService
     Task<StravaStats> GetStats();
     Task<bool> IsConnected();
     Task<int> SyncActivities();
+    Task<IEnumerable<PersonalBest>> GetPersonalBests();
     Task Disconnect();
 }
 

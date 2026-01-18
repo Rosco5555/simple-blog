@@ -61,6 +61,13 @@ public class StravaController : ControllerBase
         return Ok(new ConnectionStatus { Connected = connected });
     }
 
+    [HttpGet("pbs")]
+    public async Task<ActionResult<IEnumerable<PersonalBest>>> GetPersonalBests()
+    {
+        var pbs = await _service.GetPersonalBests();
+        return Ok(pbs);
+    }
+
     // Admin endpoints
     [HttpGet("auth/url")]
     public ActionResult<AuthUrlResponse> GetAuthUrl([FromQuery] string redirectUri)

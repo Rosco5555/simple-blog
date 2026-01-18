@@ -131,6 +131,33 @@ using (var conn = new Npgsql.NpgsqlConnection(connectionString))
 
     await ExecuteSql(conn, @"
         CREATE INDEX IF NOT EXISTS idx_strava_activities_start_date ON strava_activities(start_date DESC)");
+
+    // Migration 008: Add location and best efforts
+    await ExecuteSql(conn, @"
+        ALTER TABLE strava_activities ADD COLUMN IF NOT EXISTS location_city TEXT");
+    await ExecuteSql(conn, @"
+        ALTER TABLE strava_activities ADD COLUMN IF NOT EXISTS location_state TEXT");
+    await ExecuteSql(conn, @"
+        ALTER TABLE strava_activities ADD COLUMN IF NOT EXISTS location_country TEXT");
+
+    await ExecuteSql(conn, @"
+        CREATE TABLE IF NOT EXISTS strava_best_efforts (
+            id BIGINT PRIMARY KEY,
+            activity_id BIGINT NOT NULL REFERENCES strava_activities(id) ON DELETE CASCADE,
+            athlete_id BIGINT NOT NULL,
+            name TEXT NOT NULL,
+            distance_meters DECIMAL(10,2) NOT NULL,
+            elapsed_time_seconds INT NOT NULL,
+            moving_time_seconds INT NOT NULL,
+            start_date TIMESTAMP NOT NULL,
+            pr_rank INT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )");
+
+    await ExecuteSql(conn, @"
+        CREATE INDEX IF NOT EXISTS idx_strava_best_efforts_name ON strava_best_efforts(name)");
+    await ExecuteSql(conn, @"
+        CREATE INDEX IF NOT EXISTS idx_strava_best_efforts_activity ON strava_best_efforts(activity_id)");
 }
 
 async Task ExecuteSql(Npgsql.NpgsqlConnection conn, string sql)

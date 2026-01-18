@@ -168,6 +168,17 @@ interface StravaActivity {
   startDateLocal: string;
   totalElevationGain?: number;
   averageHeartrate?: number;
+  locationCity?: string;
+  locationState?: string;
+  locationCountry?: string;
+}
+
+interface PersonalBest {
+  name: string;
+  distanceMeters: number;
+  bestTimeSeconds: number;
+  achievedDate: string;
+  activityId: number;
 }
 
 interface StravaStats {
@@ -516,6 +527,7 @@ function formatDistance(meters: number): string {
 function Runs({ isAdmin }: { isAdmin: boolean }) {
   const [activities, setActivities] = useState<StravaActivity[]>([]);
   const [stats, setStats] = useState<StravaStats | null>(null);
+  const [pbs, setPbs] = useState<PersonalBest[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -525,10 +537,11 @@ function Runs({ isAdmin }: { isAdmin: boolean }) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statusRes, activitiesRes, statsRes] = await Promise.all([
+      const [statusRes, activitiesRes, statsRes, pbsRes] = await Promise.all([
         fetch(`${STRAVA_URL}/status`),
         fetch(`${STRAVA_URL}/activities`),
-        fetch(`${STRAVA_URL}/stats`)
+        fetch(`${STRAVA_URL}/stats`),
+        fetch(`${STRAVA_URL}/pbs`)
       ]);
 
       if (statusRes.ok) {
@@ -540,6 +553,9 @@ function Runs({ isAdmin }: { isAdmin: boolean }) {
       }
       if (statsRes.ok) {
         setStats(await statsRes.json());
+      }
+      if (pbsRes.ok) {
+        setPbs(await pbsRes.json());
       }
     } catch (err) {
       console.error('Failed to fetch Strava data:', err);
@@ -655,6 +671,27 @@ function Runs({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
+      {pbs.length > 0 && (
+        <div className="pbs-section">
+          <h3>Personal Bests</h3>
+          <div className="pbs-grid">
+            {pbs.map(pb => (
+              <div key={pb.name} className="pb-card">
+                <div className="pb-distance">{pb.name}</div>
+                <div className="pb-time">{formatDuration(pb.bestTimeSeconds)}</div>
+                <div className="pb-date">
+                  {new Date(pb.achievedDate).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {activities.length === 0 ? (
         <p className="empty-state">
           {connected ? 'No activities yet. Click Sync to fetch your runs.' : 'Connect Strava to see your running activities.'}
@@ -667,14 +704,21 @@ function Runs({ isAdmin }: { isAdmin: boolean }) {
               return (
                 <div key={activity.id} className="activity-item">
                   <div className="activity-header">
-                    <span className="activity-name">{activity.name}</span>
-                    <span className="activity-date">
-                      {new Date(activity.startDateLocal).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
-                    </span>
+                    <div className="activity-title-row">
+                      <span className="activity-name">{activity.name}</span>
+                      <span className="activity-date">
+                        {new Date(activity.startDateLocal).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    {(activity.locationCity || activity.locationCountry) && (
+                      <span className="activity-location">
+                        {[activity.locationCity, activity.locationCountry].filter(Boolean).join(', ')}
+                      </span>
+                    )}
                   </div>
                   <div className="activity-stats">
                     <span className="activity-stat">

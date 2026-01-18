@@ -18,5 +18,8 @@ public class StravaActivity
     public int? MaxHeartrate { get; set; }
     public string? SummaryPolyline { get; set; }
     public int? Calories { get; set; }
+    public string? LocationCity { get; set; }
+    public string? LocationState { get; set; }
+    public string? LocationCountry { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
