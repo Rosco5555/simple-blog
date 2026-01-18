@@ -1395,6 +1395,9 @@ function Home({ isAdmin }: { isAdmin: boolean }) {
 }
 
 function Posts({ posts, loading, isAdmin, onPostDeleted }: { posts: BlogPost[]; loading: boolean; isAdmin: boolean; onPostDeleted: () => void }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this post?')) return;
 
@@ -1404,6 +1407,47 @@ function Posts({ posts, loading, isAdmin, onPostDeleted }: { posts: BlogPost[]; 
     });
 
     onPostDeleted();
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(`Delete ${selected.size} post${selected.size > 1 ? 's' : ''}?`)) return;
+
+    setDeleting(true);
+    try {
+      await Promise.all(
+        Array.from(selected).map(id =>
+          fetch(`${API_URL}/${id}`, {
+            method: 'DELETE',
+            headers: authHeaders()
+          })
+        )
+      );
+      setSelected(new Set());
+      onPostDeleted();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === posts.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(posts.map(p => p.id)));
+    }
   };
 
   if (loading) {
@@ -1429,9 +1473,38 @@ function Posts({ posts, loading, isAdmin, onPostDeleted }: { posts: BlogPost[]; 
   return (
     <>
       <Link to="/" className="back-link">&larr; Home</Link>
+      {isAdmin && (
+        <div className="bulk-actions">
+          <label className="select-all-label">
+            <input
+              type="checkbox"
+              checked={selected.size === posts.length}
+              onChange={toggleSelectAll}
+            />
+            Select all
+          </label>
+          {selected.size > 0 && (
+            <button
+              className="bulk-delete-btn"
+              onClick={handleDeleteSelected}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : `Delete ${selected.size} selected`}
+            </button>
+          )}
+        </div>
+      )}
       {posts.map(post => (
-        <article key={post.id} className="post">
+        <article key={post.id} className={`post ${selected.has(post.id) ? 'post-selected' : ''}`}>
           <h2>
+            {isAdmin && (
+              <input
+                type="checkbox"
+                className="post-checkbox"
+                checked={selected.has(post.id)}
+                onChange={() => toggleSelect(post.id)}
+              />
+            )}
             <Link to={`/post/${post.id}`}>{post.title}</Link>
             {isAdmin && (
               <>
