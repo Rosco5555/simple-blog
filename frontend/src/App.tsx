@@ -995,7 +995,9 @@ function Cubing() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
-        if (timerState === 'idle') {
+        if (timerState === 'idle' || timerState === 'stopped') {
+          setScramble(generateScramble());
+          setLastSolve(null);
           setTimerState('ready');
         } else if (timerState === 'running') {
           const elapsed = Date.now() - startTime;
@@ -1056,7 +1058,9 @@ function Cubing() {
   // Touch handlers for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
-    if (timerState === 'idle') {
+    if (timerState === 'idle' || timerState === 'stopped') {
+      setScramble(generateScramble());
+      setLastSolve(null);
       setTimerState('ready');
     } else if (timerState === 'running') {
       const elapsed = Date.now() - startTime;
@@ -1157,14 +1161,11 @@ function Cubing() {
           >
             Delete
           </button>
-          <button className="next-solve-btn" onClick={resetTimer}>
-            Next Solve
-          </button>
         </div>
       )}
 
-      {timerState === 'idle' && solves.length > 0 && (
-        <p className="timer-hint">Hold spacebar (or tap on mobile) to start</p>
+      {(timerState === 'idle' || timerState === 'stopped') && solves.length > 0 && (
+        <p className="timer-hint">Hold spacebar (or tap on mobile) to start next solve</p>
       )}
 
       {solves.length > 0 && (
