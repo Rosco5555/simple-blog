@@ -905,7 +905,9 @@ function Cubing() {
   const [scramble, setScramble] = useState<string>(() => generateScramble());
   const [loading, setLoading] = useState(true);
   const [lastSolve, setLastSolve] = useState<CubeSolve | null>(null);
+  const [visibleSolves, setVisibleSolves] = useState(10);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const SOLVES_PAGE_SIZE = 10;
 
   // Fetch solves on mount
   useEffect(() => {
@@ -1116,7 +1118,9 @@ function Cubing() {
       <div className="cubing-page">
         <Link to="/" className="back-link">&larr; Home</Link>
         <h2>Cubing Timer</h2>
-        <p>Loading...</p>
+        <div className="cubing-loading">
+          <div className="cubing-spinner"></div>
+        </div>
       </div>
     );
   }
@@ -1200,7 +1204,7 @@ function Cubing() {
           <div className="solves-section">
             <h3>Recent Solves ({solves.length})</h3>
             <div className="solves-list">
-              {solves.slice(0, 50).map((solve, index) => (
+              {solves.slice(0, visibleSolves).map((solve, index) => (
                 <div key={solve.id} className="solve-item">
                   <span className="solve-number">{solves.length - index}.</span>
                   <span className={`solve-time ${solve.dnf ? 'dnf' : ''}`}>
@@ -1220,6 +1224,14 @@ function Cubing() {
                 </div>
               ))}
             </div>
+            {visibleSolves < solves.length && (
+              <button
+                className="load-more-solves-btn"
+                onClick={() => setVisibleSolves(v => v + SOLVES_PAGE_SIZE)}
+              >
+                Load More ({solves.length - visibleSolves} remaining)
+              </button>
+            )}
             <button className="clear-all-btn" onClick={deleteAllSolves}>
               Clear All Solves
             </button>

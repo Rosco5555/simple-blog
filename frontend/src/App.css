@@ -1315,6 +1315,29 @@ a:hover {
   margin-bottom: 16px;
 }
 
+/* Cubing Loading Spinner */
+.cubing-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+.cubing-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f0f0f0;
+  border-top-color: #1a1a1a;
+  border-radius: 50%;
+  animation: cubing-spin 0.8s linear infinite;
+}
+
+@keyframes cubing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .scramble-display {
   font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
   font-size: 18px;
@@ -1547,6 +1570,24 @@ a:hover {
   background: #fee2e2;
 }
 
+.load-more-solves-btn {
+  width: 100%;
+  padding: 12px 24px;
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.load-more-solves-btn:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
 /* Feature card for cubing */
 .feature-card-cubing {
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
@@ -1554,33 +1595,87 @@ a:hover {
 
 /* Mobile responsive for cubing */
 @media (max-width: 600px) {
+  .timer-area {
+    min-height: 280px;
+    margin-bottom: 16px;
+    background: #f9f9f9;
+    border-radius: 16px;
+    margin-top: 16px;
+  }
+
   .timer-display {
-    font-size: 48px;
+    font-size: 56px;
   }
 
   .scramble-display {
-    font-size: 16px;
+    font-size: 15px;
+    padding: 12px;
   }
 
   .cubing-stats-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .cubing-stat-card {
+    padding: 12px;
   }
 
   .cubing-stat-value {
     font-size: 18px;
   }
 
+  .cubing-stat-label {
+    font-size: 10px;
+  }
+
   .solve-actions {
     gap: 8px;
+    flex-wrap: wrap;
   }
 
   .penalty-btn,
   .delete-solve-btn {
-    padding: 8px 16px;
-    font-size: 13px;
+    padding: 12px 20px;
+    font-size: 14px;
+    flex: 1;
+    min-width: 70px;
   }
 
   .solve-scramble {
     display: none;
+  }
+
+  .solve-item {
+    padding: 14px 12px;
+  }
+
+  .solve-time {
+    font-size: 16px;
+    min-width: 80px;
+  }
+
+  .solve-number {
+    min-width: 28px;
+    font-size: 13px;
+  }
+
+  .solve-delete-btn {
+    font-size: 24px;
+    padding: 0 8px;
+  }
+
+  .timer-hint {
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .solves-section h3 {
+    font-size: 15px;
+  }
+
+  .load-more-solves-btn,
+  .clear-all-btn {
+    padding: 14px 24px;
   }
 }
